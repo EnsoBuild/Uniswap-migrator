@@ -21,9 +21,12 @@ import { Radio, RadioGroup } from "@/components/ui/radio";
 import { TICK_SPACINGS, nearestUsableTick, TickMath } from "@uniswap/v3-sdk";
 import { formatCompactUsd, normalizeValue } from "@/util";
 import { BridgeBundleParams, useEnsoData, useEnsoToken } from "@/util/enso";
-import { useAccount } from "wagmi";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
+import { posManagerAbi } from "@/util/abis";
+import { useExtendedContractWrite } from "@/util/wallet";
+
 // Define minimal Pool interface if not already defined elsewhere
 interface PoolData {
   id: string;
@@ -105,8 +108,11 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
     if (!selectedPoolData) return 1.0;
     return Math.pow(1.0001, currentPoolTick);
   }, [selectedPoolData, currentPoolTick]);
+  console.log("tokendata", token0Data, token1Data);
 
   const decimalsDiff = 10 ** (token1Data?.decimals - token0Data?.decimals);
+
+  console.log("decimalsDiff", decimalsDiff);
 
   const normalizePrice = useCallback(
     (price: number, back = false) => {
@@ -234,34 +240,17 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
   useEffect(() => {
     if (selectedPoolData) {
       // Set initial price range to full range
-      setMinTick(TickMath.MIN_TICK);
-      setMaxTick(TickMath.MAX_TICK);
+      setPriceRange(100);
     }
   }, [selectedPoolData]);
 
-  // Update the pool selection when a position is selected
   useEffect(() => {
-    if (selectedPosition && data?.pools) {
-      // Try to find a matching pool based on the position's tokens and fee
-      const matchingPool = data.pools.find(
-        (pool) => Number(pool.feeTier) === selectedPosition.fee
-      );
+    setSelectedPool("");
+  }, [token0, token1]);
 
-      if (matchingPool) {
-        setSelectedPool(matchingPool.id);
-      }
-    }
-  }, [selectedPosition, data?.pools]);
-
-  // Get pool fee from selected pool
-  const poolFee = useMemo(() => {
-    if (!selectedPoolData) return "3000"; // Default to 0.3%
-    return selectedPoolData.feeTier.toString();
-  }, [selectedPoolData]);
   const { address } = useAccount();
   const chainId = usePriorityChainId();
   const tokenIn = getPosManagerAddress(chainId);
-  console.log("selectedPosition", selectedPosition);
 
   const ensoArgs: BridgeBundleParams = {
     //input position
@@ -272,17 +261,14 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
     tokenOut: selectedPosition
       ? [selectedPosition.token0, selectedPosition.token1]
       : undefined,
-    liquidity: selectedPosition?.liquidity?.toString() || "0",
+    liquidity: selectedPosition?.liquidity?.toString(),
     //output position
     token0: orderedTokens.tokens[0] as Address,
     token1: orderedTokens.tokens[1] as Address,
-    poolFee,
+    poolFee: selectedPoolData?.feeTier.toString(),
     receiver: address,
     destinationChainId: 130,
   };
-
-  // Log the arguments being passed to useEnsoData
-  console.log("useEnsoData arguments:", ensoArgs);
 
   // Only call useEnsoData if we have valid tokens and a non-zero amount
   const ensoResult = useEnsoData(ensoArgs);
@@ -290,6 +276,31 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
   // Get current display token symbols
   const baseToken = pricesInToken0 ? token0Data?.symbol : token1Data?.symbol;
   const quoteToken = pricesInToken0 ? token1Data?.symbol : token0Data?.symbol;
+
+  const approvalData = useReadContract({
+    address: tokenIn,
+    abi: posManagerAbi,
+    functionName: "getApproved",
+    args: [selectedPosition?.id ? BigInt(selectedPosition.id) : undefined],
+  });
+
+  // Check if position is approved for migration
+  const isApproved = useMemo(() => {
+    if (!approvalData.data || !address) return false;
+    return (
+      approvalData.data.toLowerCase() ===
+      "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf".toLowerCase()
+    );
+  }, [approvalData.data, address]);
+
+  const approveNft = useExtendedContractWrite("Approve Position", {
+    address: tokenIn,
+    abi: posManagerAbi,
+    functionName: "approve",
+    args: ["0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf", selectedPosition?.id],
+  });
+
+  console.log("approvalData", approvalData);
 
   return (
     <Box minW="550px" h="100%" mt={6}>
@@ -511,16 +522,38 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
         token1 && <Text mt={4}>No pools found for selected tokens</Text>
       )}
 
-      {/* Add Migrate button */}
-      <Box mt={6} display="flex" justifyContent="center">
+      {/* Add Approval and Migrate buttons */}
+      <Box
+        mt={6}
+        display="flex"
+        justifyContent="center"
+        gap={4}
+        flexDirection="column"
+        alignItems="center"
+      >
+        {selectedPosition && !isApproved && (
+          <Button
+            colorPalette="green"
+            size="lg"
+            onClick={approveNft.write}
+            disabled={!selectedPosition}
+            loading={approveNft.isLoading}
+          >
+            Approve Position
+          </Button>
+        )}
+
         <Button
           colorPalette="blue"
           size="lg"
           loading={ensoResult.isLoading}
-          onClick={
-            ensoResult.data ? ensoResult.sendTransaction.send : undefined
+          onClick={ensoResult.sendTransaction?.send}
+          disabled={
+            !ensoResult.data.tx ||
+            !ensoResult.sendTransaction?.send ||
+            !!ensoResult.sendTransaction.error ||
+            !isApproved
           }
-          disabled={!ensoResult.data}
         >
           Migrate
         </Button>

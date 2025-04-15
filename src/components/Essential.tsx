@@ -15,7 +15,7 @@ import { Pool, Position as V3Position } from "@uniswap/v3-sdk";
 import { usePriorityChainId } from "@/util/common";
 import { v3FactoryAbi, v3PoolAbi } from "@/util/abis";
 import TargetSection from "./TargetSection";
-import nonfungiblePositionManagerABI from "./util/posManagerAbi";
+import { posManagerAbi } from "@/util/abis";
 import {
   getPosManagerAddress,
   Position,
@@ -95,7 +95,7 @@ const getMintAmounts = (
   price: bigint,
   tick: number,
   liquidity: bigint,
-  ticks: [number, number],
+  ticks: [number, number]
 ) => {
   const tokenA = new Token(1, token0, 18, "A", "A");
   const tokenB = new Token(1, token1, 18, "B", "B");
@@ -106,7 +106,7 @@ const getMintAmounts = (
     poolFee,
     price.toString(),
     liquidity.toString(),
-    tick,
+    tick
   );
 
   const position = new V3Position({
@@ -145,7 +145,7 @@ const PositionItem = ({
       poolPrice?.[0],
       poolPrice?.[1],
       position.liquidity,
-      [position.tickLower, position.tickUpper],
+      [position.tickLower, position.tickUpper]
     );
 
   // Calculate token amounts with a simpler approach to avoid type errors
@@ -247,14 +247,14 @@ const Essential = () => {
   const { address } = useAccount();
   const chainId = useChainId();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(
-    null,
+    null
   );
 
   const posManagerAddress = getPosManagerAddress(chainId);
 
   const { data: balanceOf } = useReadContract({
     address: posManagerAddress,
-    abi: nonfungiblePositionManagerABI,
+    abi: posManagerAbi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
   });
@@ -263,7 +263,7 @@ const Essential = () => {
     if (!address || !balanceOf) return [];
     return Array.from({ length: Number(balanceOf) }, (_, i) => ({
       address: posManagerAddress as `0x${string}`,
-      abi: nonfungiblePositionManagerABI,
+      abi: posManagerAbi,
       functionName: "tokenOfOwnerByIndex",
       args: [address, BigInt(i)] as const,
     }));
@@ -273,14 +273,14 @@ const Essential = () => {
     // @ts-ignore
     {
       contracts: tokenQueries,
-    },
+    }
   );
 
   const positionQueries = useMemo(() => {
     if (!tokenIds) return [];
     return tokenIds.map((tokenId) => ({
       address: posManagerAddress as `0x${string}`,
-      abi: nonfungiblePositionManagerABI,
+      abi: posManagerAbi,
       functionName: "positions",
       args: [tokenId.result] as const,
     }));

@@ -99,6 +99,11 @@ export interface BridgeBundleParams {
   liquidity?: string;
 }
 
+const PositionManagers = {
+  8453: "0x7c5f5a4bbd8fd63184577525326123b519429bdc",
+  130: "0x4529a01c7a0410167c5740c487a8de60232617bf",
+};
+
 const useBridgeBundle = (
   {
     tokenIn,
@@ -175,7 +180,7 @@ const useBridgeBundle = (
             protocol: "uniswap-v4",
             action: "depositclmm",
             args: {
-              tokenOut: "0x7c5f5a4bbd8fd63184577525326123b519429bdc",
+              tokenOut: PositionManagers[destinationChainId],
               ticks,
               tokenIn: [token0, token1],
               poolFee,
@@ -203,11 +208,10 @@ const useBridgeBundle = (
         useOutputOfCallAt: 1,
       };
 
-      bundleActions.unshift(
-          {
+      bundleActions.unshift({
         protocol: "enso",
-            // @ts-ignore
-            action: "merge",
+        // @ts-ignore
+        action: "merge",
         args: {
           tokenIn: tokenOut,
           // @ts-ignore
@@ -239,16 +243,17 @@ const useBridgeBundle = (
       });
     } else {
       bundleActions.unshift(
-          // @ts-ignore
-          {
-        protocol: "enso",
-        action: BundleActionType.Route,
-        args: {
-          tokenIn,
-          amountIn: 0,
-          tokenOut: sourceToken,
-        },
-      } as BundleAction);
+        // @ts-ignore
+        {
+          protocol: "enso",
+          action: BundleActionType.Route,
+          args: {
+            tokenIn,
+            amountIn: 0,
+            tokenOut: sourceToken,
+          },
+        } as BundleAction
+      );
     }
   }
 
@@ -285,34 +290,37 @@ export const useBundleData = (
 ) => {
   const chainId = usePriorityChainId();
 
-  // debugger;
-
   return useQuery({
     queryKey: ["enso-bundle", chainId, bundleParams, bundleActions],
     queryFn: () => ensoClient.getBundleData(bundleParams, bundleActions),
     enabled:
-      (enabled &&
-        bundleActions.length > 0 &&
-        isAddress(bundleParams.fromAddress) &&
-        // @ts-ignore
-        +(bundleActions[0]?.args?.amountIn as string) > 0) ||
-        // @ts-ignore
-      !!bundleActions[0]?.args?.tokenId,
+      enabled &&
+      bundleActions.length > 0 &&
+      isAddress(bundleParams.fromAddress) &&
+      (+(bundleActions[0]?.args?.amountIn as string) > 0 ||
+        !!bundleActions[0]?.args?.tokenId),
   });
 };
 
 export const useEnsoData = (params: BridgeBundleParams) => {
+  const enabled = Boolean(
+    params.tokenId &&
+      params.tokenOut &&
+      params.destinationChainId &&
+      params.tokenIn &&
+      params.receiver &&
+      params.ticks[0] &&
+      params.liquidity &&
+      params.poolFee &&
+      params.token0 &&
+      params.token1
+  );
+  console.log("enabled", enabled);
+
   const { data: bundleData, isLoading: bundleLoading } = useBridgeBundle(
     params,
-    true // Always enabled
+    enabled
   );
-
-  // Log the result of the bundle data
-  console.log("useBridgeBundle result:", {
-    bundleData,
-    bundleLoading,
-    txAvailable: !!bundleData?.tx,
-  });
 
   const data = bundleData;
   const isLoading = bundleLoading;
