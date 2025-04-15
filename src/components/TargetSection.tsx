@@ -18,7 +18,7 @@ import {
 } from "@chakra-ui/react";
 import { Address } from "viem";
 import { Radio, RadioGroup } from "@/components/ui/radio";
-import { TICK_SPACINGS, nearestUsableTick, TickMath } from "@uniswap/v3-sdk";
+import { TICK_SPACINGS, nearestUsableTick } from "@uniswap/v3-sdk";
 import { formatCompactUsd, normalizeValue } from "@/util";
 import { BridgeBundleParams, useEnsoData, useEnsoToken } from "@/util/enso";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
@@ -26,6 +26,7 @@ import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
 import { posManagerAbi } from "@/util/abis";
 import { useExtendedContractWrite } from "@/util/wallet";
+import { TickMath } from "@uniswap/v3-sdk";
 
 // Define minimal Pool interface if not already defined elsewhere
 interface PoolData {
@@ -48,13 +49,14 @@ const roundTick = (tick: number, tickSpacing: number, roundUp: boolean) => {
     return Math.floor(tick / tickSpacing) * tickSpacing;
   }
 };
+console.log(TickMath.MIN_TICK);
 
 const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
   const [token0, setToken0] = useState<Address>();
   const [token1, setToken1] = useState<Address>();
   const [selectedPool, setSelectedPool] = useState<string>("");
-  const [minTick, setMinTick] = useState<number>(TickMath.MIN_TICK);
-  const [maxTick, setMaxTick] = useState<number>(TickMath.MAX_TICK);
+  const [minTick, setMinTick] = useState<number>(0);
+  const [maxTick, setMaxTick] = useState<number>(0);
   const [pricesInToken0, setPricesInToken0] = useState<boolean>(true);
 
   const [token0Data] = useEnsoToken({ address: token0, priorityChainId: 130 });
@@ -64,18 +66,19 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
   console.log("token1Data", token1Data);
 
   // Use orderTokensAndAmounts to ensure tokens are in the correct order
-  const orderedTokens = useMemo(() => {
-    if (!token0 || !token1) return { tokens: [undefined, undefined] };
+  const { tokens, inverted } = useMemo(() => {
+    if (!token0 || !token1)
+      return { tokens: [undefined, undefined], inverted: false };
 
     // Use 0n as dummy amounts since we're only interested in token ordering
-    const { tokens } = orderTokensAndAmounts(token0, token1, 0n, 0n);
-    return { tokens };
+    const { tokens, inverted } = orderTokensAndAmounts(token0, token1, 0n, 0n);
+    return { tokens, inverted };
   }, [token0, token1]);
 
   // Pass the ordered tokens to the hook
   const { data } = useV4UnichainPools(
-    orderedTokens.tokens[0] as Address | undefined,
-    orderedTokens.tokens[1] as Address | undefined
+    tokens[0] as Address | undefined,
+    tokens[1] as Address | undefined
   );
 
   // Get the selected pool object
@@ -108,9 +111,11 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
     if (!selectedPoolData) return 1.0;
     return Math.pow(1.0001, currentPoolTick);
   }, [selectedPoolData, currentPoolTick]);
-  console.log("tokendata", token0Data, token1Data);
+  //   console.log("tokendata", token0Data, token1Data);
 
-  const decimalsDiff = 10 ** (token1Data?.decimals - token0Data?.decimals);
+  const decimalsDiff = inverted
+    ? 10 ** (token1Data?.decimals - token0Data?.decimals)
+    : 10 ** (token0Data?.decimals - token1Data?.decimals);
 
   console.log("decimalsDiff", decimalsDiff);
 
@@ -220,8 +225,10 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
       setMaxTick(newMaxTick);
     } else if (percentage === 100) {
       // FULL range
-      setMinTick(roundTick(TickMath.MIN_TICK, tickSpacing, false));
-      setMaxTick(roundTick(TickMath.MAX_TICK, tickSpacing, true));
+      setMinTick(
+        roundTick(TickMath.MIN_TICK + tickSpacing, tickSpacing, false)
+      );
+      setMaxTick(roundTick(TickMath.MAX_TICK - tickSpacing, tickSpacing, true));
     } else {
       // Percentage range centered around current price
       const minPriceValue = currentPoolPrice * (1 - percentage / 100);
@@ -263,8 +270,8 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
       : undefined,
     liquidity: selectedPosition?.liquidity?.toString(),
     //output position
-    token0: orderedTokens.tokens[0] as Address,
-    token1: orderedTokens.tokens[1] as Address,
+    token0: tokens[0] as Address,
+    token1: tokens[1] as Address,
     poolFee: selectedPoolData?.feeTier.toString(),
     receiver: address,
     destinationChainId: 130,
