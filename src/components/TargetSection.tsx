@@ -270,8 +270,8 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
       : undefined,
     liquidity: selectedPosition?.liquidity?.toString(),
     //output position
-    token0: tokens[0] as Address,
-    token1: tokens[1] as Address,
+    token0,
+    token1,
     poolFee: selectedPoolData?.feeTier.toString(),
     receiver: address,
     destinationChainId: 130,
