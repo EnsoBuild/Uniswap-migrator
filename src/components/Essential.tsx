@@ -6,21 +6,29 @@ import {
   useChainId,
 } from "wagmi";
 import { Address } from "viem";
-import { Box, Text, Heading, Flex, VStack, Center } from "@chakra-ui/react";
+import {
+  Box,
+  Text,
+  Heading,
+  Flex,
+  VStack,
+  Center,
+  Tabs,
+} from "@chakra-ui/react";
 import { Token } from "@uniswap/sdk-core";
-
-import { useEnsoPrice, useEnsoToken } from "@/util/enso";
-import { normalizeValue } from "@/util";
 import { Pool, Position as V3Position } from "@uniswap/v3-sdk";
+import { useEnsoPrice, useEnsoToken } from "@/util/enso";
+import { denormalizeValue, normalizeValue } from "@/util";
 import { usePriorityChainId } from "@/util/common";
 import { v3FactoryAbi, v3PoolAbi } from "@/util/abis";
-import TargetSection from "./TargetSection";
 import { posManagerAbi } from "@/util/abis";
 import {
   getPosManagerAddress,
   Position,
   v3FactoryAddresses,
 } from "@/util/uniswap";
+import TargetSection from "./TargetSection";
+import SwapInput from "./SwapInput";
 
 const mapV3Position = (position: unknown): Position => {
   const [
@@ -95,7 +103,7 @@ const getMintAmounts = (
   price: bigint,
   tick: number,
   liquidity: bigint,
-  ticks: [number, number]
+  ticks: [number, number],
 ) => {
   const tokenA = new Token(1, token0, 18, "A", "A");
   const tokenB = new Token(1, token1, 18, "B", "B");
@@ -106,7 +114,7 @@ const getMintAmounts = (
     poolFee,
     price.toString(),
     liquidity.toString(),
-    tick
+    tick,
   );
 
   const position = new V3Position({
@@ -145,7 +153,7 @@ const PositionItem = ({
       poolPrice?.[0],
       poolPrice?.[1],
       position.liquidity,
-      [position.tickLower, position.tickUpper]
+      [position.tickLower, position.tickUpper],
     );
 
   // Calculate token amounts with a simpler approach to avoid type errors
@@ -247,8 +255,16 @@ const Essential = () => {
   const { address } = useAccount();
   const chainId = useChainId();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(
-    null
+    null,
   );
+  const [sourceMode, setSourceMode] = useState<"token" | "position">("token");
+  const [sourceToken, setSourceToken] = useState<Address>(
+    "0x0000000000000000000000000000000000000000",
+  );
+  const [sourceValue, setSourceValue] = useState<string>("");
+  const [sourceTokenData] = useEnsoToken({ address: sourceToken });
+
+  const sourceAmount = denormalizeValue(sourceValue, sourceTokenData?.decimals);
 
   const posManagerAddress = getPosManagerAddress(chainId);
 
@@ -273,7 +289,7 @@ const Essential = () => {
     // @ts-ignore
     {
       contracts: tokenQueries,
-    }
+    },
   );
 
   const positionQueries = useMemo(() => {
@@ -303,6 +319,12 @@ const Essential = () => {
   }, [positions, tokenIds]);
   console.log(positionsWithIds);
 
+  // Get token price for SwapInput
+  const { data: tokenPrice } = useEnsoPrice(sourceToken);
+  const usdValue = tokenPrice
+    ? parseFloat(sourceValue || "0") * +tokenPrice.price
+    : 0;
+
   if (!address) {
     return <Text color="gray.600">Please connect your wallet</Text>;
   }
@@ -310,28 +332,61 @@ const Essential = () => {
   return (
     <Center>
       <Flex>
-        <Box p={6}>
-          <Heading as="h2" size="lg" mb={6}>
-            Your Uniswap V3 Positions
-          </Heading>
-          {!balanceOf || balanceOf === 0n ? (
-            <Text color="gray.600">You don't have any NFT positions</Text>
-          ) : (
-            <Box>
-              <VStack gap={4}>
-                {positionsWithIds.map((position) => (
-                  <PositionItem
-                    key={position.id}
-                    position={position}
-                    isSelected={selectedPosition?.id === position.id}
-                    onSelect={() => setSelectedPosition(position)}
-                  />
-                ))}
-              </VStack>
-            </Box>
-          )}
+        <Box p={6} minW="450px">
+          <Tabs.Root
+            variant="line"
+            colorScheme="blue"
+            value={sourceMode}
+            onValueChange={(details) =>
+              setSourceMode(details.value === "position" ? "position" : "token")
+            }
+          >
+            <Tabs.List mb={4}>
+              <Tabs.Trigger value="token">Token</Tabs.Trigger>
+              <Tabs.Trigger value="position">Position</Tabs.Trigger>
+            </Tabs.List>
+            <Tabs.Content value="position">
+              <Heading as="h2" size="lg" mb={6}>
+                Your Uniswap V3 Positions
+              </Heading>
+              {!balanceOf || balanceOf === 0n ? (
+                <Text color="gray.600">You don't have any NFT positions</Text>
+              ) : (
+                <Box>
+                  <VStack gap={4}>
+                    {positionsWithIds.map((position) => (
+                      <PositionItem
+                        key={position.id}
+                        position={position}
+                        isSelected={selectedPosition?.id === position.id}
+                        onSelect={() => setSelectedPosition(position)}
+                      />
+                    ))}
+                  </VStack>
+                </Box>
+              )}
+            </Tabs.Content>
+            <Tabs.Content value="token">
+              <Heading as="h2" size="lg" mb={6}>
+                Choose Token
+              </Heading>
+              <Box maxW="450px">
+                <SwapInput
+                  tokenValue={sourceToken}
+                  tokenOnChange={setSourceToken}
+                  inputValue={sourceValue}
+                  inputOnChange={setSourceValue}
+                  usdValue={usdValue}
+                />
+              </Box>
+            </Tabs.Content>
+          </Tabs.Root>
         </Box>
-        <TargetSection selectedPosition={selectedPosition} />
+        <TargetSection
+          selectedPosition={sourceMode === "position" ? selectedPosition : null}
+          sourceToken={sourceMode === "token" ? sourceToken : undefined}
+          sourceAmount={sourceMode === "token" ? sourceAmount : undefined}
+        />
       </Flex>
     </Center>
   );

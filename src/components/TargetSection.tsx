@@ -25,21 +25,15 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
 import { posManagerAbi } from "@/util/abis";
-import { useExtendedContractWrite } from "@/util/wallet";
+import { useExtendedContractWrite, useApproveIfNecessary } from "@/util/wallet";
 import { TickMath } from "@uniswap/v3-sdk";
 
-// Define minimal Pool interface if not already defined elsewhere
-interface PoolData {
-  id: string;
-  token0: { symbol: string };
-  token1: { symbol: string };
-  feeTier: string | number;
-  tick: string;
-  sqrtPrice: string;
-}
+const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
 
 interface TargetSectionProps {
   selectedPosition: Position | null;
+  sourceToken?: Address;
+  sourceAmount?: string;
 }
 
 const roundTick = (tick: number, tickSpacing: number, roundUp: boolean) => {
@@ -51,7 +45,11 @@ const roundTick = (tick: number, tickSpacing: number, roundUp: boolean) => {
 };
 console.log(TickMath.MIN_TICK);
 
-const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
+const TargetSection = ({
+  selectedPosition,
+  sourceToken,
+  sourceAmount,
+}: TargetSectionProps) => {
   const [token0, setToken0] = useState<Address>();
   const [token1, setToken1] = useState<Address>();
   const [selectedPool, setSelectedPool] = useState<string>("");
@@ -259,16 +257,24 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
   const chainId = usePriorityChainId();
   const tokenIn = getPosManagerAddress(chainId);
 
+  // Add token approval hook
+  const tokenApproval = useApproveIfNecessary(
+    sourceToken || "0x0000000000000000000000000000000000000000",
+    ROUTER_ADDRESS,
+    sourceAmount || "0"
+  );
+
   const ensoArgs: BridgeBundleParams = {
     //input position
     chainId,
-    tokenIn,
+    tokenIn: sourceToken || tokenIn,
     tokenId: selectedPosition?.id.toString(),
     ticks: [minTick, maxTick],
     tokenOut: selectedPosition
       ? [selectedPosition.token0, selectedPosition.token1]
       : undefined,
     liquidity: selectedPosition?.liquidity?.toString(),
+    amountIn: sourceAmount,
     //output position
     token0,
     token1,
@@ -293,18 +299,21 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
 
   // Check if position is approved for migration
   const isApproved = useMemo(() => {
+    if (sourceToken) {
+      // In token mode - check token approval
+      return !tokenApproval;
+    }
+
+    // In position mode - check NFT approval
     if (!approvalData.data || !address) return false;
-    return (
-      approvalData.data.toLowerCase() ===
-      "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf".toLowerCase()
-    );
-  }, [approvalData.data, address]);
+    return approvalData.data.toLowerCase() === ROUTER_ADDRESS.toLowerCase();
+  }, [approvalData.data, address, sourceToken, tokenApproval]);
 
   const approveNft = useExtendedContractWrite("Approve Position", {
     address: tokenIn,
     abi: posManagerAbi,
     functionName: "approve",
-    args: ["0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf", selectedPosition?.id],
+    args: [ROUTER_ADDRESS, selectedPosition?.id],
   });
 
   console.log("approvalData", approvalData);
@@ -312,30 +321,8 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
   return (
     <Box minW="550px" h="100%" mt={6}>
       <Heading as="h2" size="lg" mb={6}>
-        Configurate migration
+        Configure V4 Position
       </Heading>
-      {selectedPosition && (
-        <Box mb={4} p={3} borderWidth="1px" borderRadius="md" bgColor="blue.50">
-          <Text fontWeight="bold">
-            Selected Position #{selectedPosition?.id}
-          </Text>
-          <Text>Fee Tier: {selectedPosition?.fee / 10000}%</Text>
-          <Text>
-            Tick Range: [{selectedPosition?.tickLower}/
-            {selectedPosition?.tickUpper}]
-            <br />
-            Position width:{" "}
-            {Math.min(
-              1.0001 **
-                Math.abs(
-                  selectedPosition?.tickLower - selectedPosition?.tickUpper
-                ),
-              100
-            ).toFixed(2)}
-            %
-          </Text>
-        </Box>
-      )}
 
       <Flex gap={4} mt={4}>
         <TokenSelector
@@ -550,6 +537,18 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
           </Button>
         )}
 
+        {sourceToken && tokenApproval && (
+          <Button
+            colorPalette="green"
+            size="lg"
+            onClick={tokenApproval.write}
+            disabled={!sourceToken || !sourceAmount || sourceAmount === "0"}
+            loading={tokenApproval.isLoading}
+          >
+            Approve
+          </Button>
+        )}
+
         <Button
           colorPalette="blue"
           size="lg"
@@ -558,7 +557,6 @@ const TargetSection = ({ selectedPosition }: TargetSectionProps) => {
           disabled={
             !ensoResult.data.tx ||
             !ensoResult.sendTransaction?.send ||
-            !!ensoResult.sendTransaction.error ||
             !isApproved
           }
         >
