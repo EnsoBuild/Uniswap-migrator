@@ -20,7 +20,7 @@ export function orderTokensAndAmounts(
   token0: string,
   token1: string,
   amount0: bigint,
-  amount1: bigint
+  amount1: bigint,
 ): {
   tokens: [string, string];
   amounts: [bigint, bigint];
@@ -243,6 +243,7 @@ export const useV4UnichainPools = (token0?: string, token1?: string) => {
         .toPromise()
         .then((res) => res.data),
     enabled: !!token0 && !!token1,
+    refetchInterval: 60 * 1000, // 1 minute
   });
 };
 
@@ -312,7 +313,7 @@ export const getPosManagerAddress = (chainId: number) => {
 export const roundTick = (
   tick: number,
   tickSpacing: number,
-  roundUp: boolean
+  roundUp: boolean,
 ) => {
   if (roundUp) {
     return Math.ceil(tick / tickSpacing) * tickSpacing;
@@ -328,7 +329,7 @@ export const tickToPrice = (tick: number) => {
 export const priceToTick = (
   price: number,
   tickSpacing: number,
-  roundUp: boolean = false
+  roundUp: boolean = false,
 ) => {
   if (!price || price <= 0) return 0;
   const rawTick = Math.log(price) / Math.log(1.0001);
@@ -337,7 +338,7 @@ export const priceToTick = (
 
 export const calculatePricePercentage = (
   price: number,
-  currentPrice: number
+  currentPrice: number,
 ) => {
   if (!currentPrice) return null;
   return (price / currentPrice - 1) * 100;
@@ -358,7 +359,7 @@ export const calculateRangeWidth = (tickLower: number, tickUpper: number) => {
 export const isFullRange = (
   tickLower: number,
   tickUpper: number,
-  tickSpacing: number
+  tickSpacing: number,
 ) => {
   // Threshold for considering a position as full range (99% of possible range)
   const minPossibleTick =
