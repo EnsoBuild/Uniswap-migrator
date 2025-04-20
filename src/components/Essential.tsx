@@ -10,14 +10,11 @@ import {
   Center,
   Tabs,
   Badge,
-  Tooltip,
 } from "@chakra-ui/react";
 import { Token } from "@uniswap/sdk-core";
 import { Pool, Position as V3Position } from "@uniswap/v3-sdk";
 import { useEnsoPrice, useEnsoToken } from "@/util/enso";
 import { denormalizeValue, normalizeValue } from "@/util";
-import { usePriorityChainId } from "@/util/common";
-import { v3PoolAbi } from "@/util/abis";
 import {
   useV3Positions,
   convertSubgraphPosition,

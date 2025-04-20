@@ -127,22 +127,22 @@ const useBridgeBundle = (
   const isSameChain = chainId === destinationChainId;
   let bundleActions: BundleAction[] = [];
 
+  const tokenNameToBridge =
+    NATIVE_ETH_CHAINS.includes(chainId!) &&
+    NATIVE_ETH_CHAINS.includes(destinationChainId!)
+      ? "ETH"
+      : "USDC";
+  const [sourcePool, sourceToken] = useStargateTokens(
+    chainId!,
+    tokenNameToBridge
+  );
+  const [destinationPool, destinationToken] = useStargateTokens(
+    destinationChainId!,
+    tokenNameToBridge
+  );
+
   // If source and destination chains are different, use bridge action
   if (!isSameChain) {
-    const tokenNameToBridge =
-      NATIVE_ETH_CHAINS.includes(chainId!) &&
-      NATIVE_ETH_CHAINS.includes(destinationChainId!)
-        ? "ETH"
-        : "USDC";
-    const [sourcePool, sourceToken] = useStargateTokens(
-      chainId!,
-      tokenNameToBridge
-    );
-    const [destinationPool, destinationToken] = useStargateTokens(
-      destinationChainId!,
-      tokenNameToBridge
-    );
-
     bundleActions = [
       {
         protocol: "stargate",
@@ -369,7 +369,7 @@ export const useBundleData = (
     queryFn: () => ensoClient.getBundleData(bundleParams, bundleActions),
     enabled:
       enabled &&
-      bundleActions.length > 0 &&
+      bundleActions?.length > 0 &&
       isAddress(bundleParams.fromAddress) &&
       // @ts-ignore
       (+(bundleActions[0]?.args?.amountIn as string) > 0 ||
