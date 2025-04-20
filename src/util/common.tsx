@@ -215,7 +215,7 @@ export const useTokenFromList = (
 ) => {
   const { data } = useCurrentChainList(priorityChainId);
 
-  return data?.find?.((token) => token.address == -tokenAddress);
+  return data?.find?.((token) => token.address == tokenAddress);
 };
 
 export const useOutChainId = () => {
