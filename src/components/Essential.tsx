@@ -11,6 +11,7 @@ import {
   Tabs,
   Badge,
 } from "@chakra-ui/react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Token } from "@uniswap/sdk-core";
 import { Pool, Position as V3Position } from "@uniswap/v3-sdk";
 import { useEnsoPrice, useEnsoToken } from "@/util/enso";
@@ -347,7 +348,26 @@ const Essential = () => {
     : 0;
 
   if (!address) {
-    return <Text color="gray.600">Please connect your wallet</Text>;
+    return (
+      <Center h="70vh">
+        <Box
+          maxW="md"
+          borderWidth="1px"
+          borderRadius="xl"
+          boxShadow="lg"
+          bg="white"
+          p={8}
+        >
+          <VStack textAlign="center" gap={6}>
+            <Text color="gray.600">
+              Please connect your wallet to view your Uniswap positions and
+              access the migration tools.
+            </Text>
+            <ConnectButton />
+          </VStack>
+        </Box>
+      </Center>
+    );
   }
 
   return (
