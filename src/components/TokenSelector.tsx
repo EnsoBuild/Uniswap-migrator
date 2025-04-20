@@ -30,7 +30,7 @@ const DetailedTokenIndicator = ({ token }: { token: TokenWithBalance }) => {
 
   return (
     <Flex align="center" w={"full"} justifyContent={"space-between"}>
-      <TokenIndicator token={token} />
+      <TokenIndicator token={token} showName />
 
       <Flex flexDirection={"column"} alignItems={"flex-end"}>
         <Text
@@ -59,7 +59,7 @@ const DetailedTokenIndicator = ({ token }: { token: TokenWithBalance }) => {
 const hasCoincidence = (tokens: Token[], address: Address) =>
   tokens.findIndex(
     (token) =>
-      token.address?.toLocaleLowerCase() === address?.toLocaleLowerCase()
+      token.address?.toLocaleLowerCase() === address?.toLocaleLowerCase(),
   );
 
 const SelectValue = () => {
@@ -132,14 +132,14 @@ const TokenSelector = ({
 
     const balancesWithTotals = tokens?.map((token) => {
       let balanceValue = balances?.find?.(
-        (b: { token: string }) => b.token === token.address
+        (b: { token: string }) => b.token === token.address,
       );
 
       // debank return ''arb" and "zksync" native token names instead of token address
       if (token.address === ETH_ADDRESS) {
         balanceValue = balances?.find?.(
           ({ token }: { token: string }) =>
-            token && !isAddress(token as Address)
+            token && !isAddress(token as Address),
         );
       }
 
@@ -176,8 +176,8 @@ const TokenSelector = ({
 
       items = tokenList.filter((token) =>
         [token.symbol, token.name, token.address].some((val) =>
-          val.toLocaleLowerCase().includes(search)
-        )
+          val.toLocaleLowerCase().includes(search),
+        ),
       );
     }
 
@@ -192,7 +192,7 @@ const TokenSelector = ({
     ({ value }: { value: string[] }) => {
       onChange(value[0] as string);
     },
-    [onChange]
+    [onChange],
   );
   const selectValue = useMemo(() => [value], [value]);
 

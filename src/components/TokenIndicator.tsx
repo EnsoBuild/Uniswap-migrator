@@ -65,8 +65,10 @@ export const TokenIcon = ({
 export const TokenIndicator = ({
   token,
   chainId,
+  showName,
   ...rest
 }: {
+  showName?: boolean;
   token?: Token;
   chainId?: SupportedChainId;
   pr?: number;
@@ -100,7 +102,7 @@ export const TokenIndicator = ({
 
     <Flex flexDirection={"column"} maxW={"100px"}>
       <Text whiteSpace={"nowrap"} textOverflow={"ellipsis"} overflow={"hidden"}>
-        {chainId ? token?.symbol : token?.name}
+        {!showName ? token?.symbol : token?.name}
       </Text>
       {token?.underlyingTokens?.length &&
         token?.underlyingTokens?.length > 0 && (
