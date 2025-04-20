@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  useReadContract,
-  useReadContracts,
-  useAccount,
-  useChainId,
-} from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { Address } from "viem";
 import {
   Box,
@@ -14,87 +9,28 @@ import {
   VStack,
   Center,
   Tabs,
+  Badge,
+  Tooltip,
 } from "@chakra-ui/react";
 import { Token } from "@uniswap/sdk-core";
 import { Pool, Position as V3Position } from "@uniswap/v3-sdk";
 import { useEnsoPrice, useEnsoToken } from "@/util/enso";
 import { denormalizeValue, normalizeValue } from "@/util";
 import { usePriorityChainId } from "@/util/common";
-import { v3FactoryAbi, v3PoolAbi } from "@/util/abis";
-import { posManagerAbi } from "@/util/abis";
+import { v3PoolAbi } from "@/util/abis";
 import {
-  getPosManagerAddress,
+  useV3Positions,
+  convertSubgraphPosition,
   Position,
-  v3FactoryAddresses,
+  tickToPrice,
+  calculatePricePercentage,
+  formatPricePercentage,
+  calculateRangeWidth,
+  isFullRange,
+  TICK_SPACINGS,
 } from "@/util/uniswap";
 import TargetSection from "./TargetSection";
 import SwapInput from "./SwapInput";
-
-const mapV3Position = (position: unknown): Position => {
-  const [
-    nonce,
-    operator,
-    token0,
-    token1,
-    fee,
-    tickLower,
-    tickUpper,
-    liquidity,
-    feeGrowthInside0LastX128,
-    feeGrowthInside1LastX128,
-    tokensOwed0,
-    tokensOwed1,
-  ] = position as unknown as [
-    bigint,
-    Address,
-    Address,
-    Address,
-    number,
-    number,
-    number,
-    bigint,
-    bigint,
-    bigint,
-    bigint,
-    bigint,
-  ];
-  return {
-    id: 0,
-    fee,
-    token0,
-    token1,
-    liquidity,
-    tickLower,
-    tickUpper,
-    nonce,
-    operator,
-    feeGrowthInside0LastX128,
-    feeGrowthInside1LastX128,
-    tokensOwed0,
-    tokensOwed1,
-  };
-};
-
-const useV3PoolPrice = (position: Position) => {
-  const chainId = usePriorityChainId();
-  const factoryAddress = v3FactoryAddresses[chainId]!;
-  const poolAddress = useReadContract({
-    address: factoryAddress,
-    abi: v3FactoryAbi,
-    functionName: "getPool",
-    args: [position.token0, position.token1, position.fee],
-  });
-
-  const poolPrice = useReadContract({
-    address: poolAddress.data as `0x${string}`,
-    abi: v3PoolAbi,
-    functionName: "slot0",
-  });
-
-  console.log(poolPrice.data, poolAddress.data);
-
-  return poolPrice.data;
-};
 
 const getMintAmounts = (
   token0: Address,
@@ -103,7 +39,7 @@ const getMintAmounts = (
   price: bigint,
   tick: number,
   liquidity: bigint,
-  ticks: [number, number],
+  ticks: [number, number]
 ) => {
   const tokenA = new Token(1, token0, 18, "A", "A");
   const tokenB = new Token(1, token1, 18, "B", "B");
@@ -114,7 +50,7 @@ const getMintAmounts = (
     poolFee,
     price.toString(),
     liquidity.toString(),
-    tick,
+    tick
   );
 
   const position = new V3Position({
@@ -129,6 +65,136 @@ const getMintAmounts = (
   return [amount0.toString(), amount1.toString()];
 };
 
+const RangeIndicator = ({
+  isInRange,
+  currentTick,
+  tickLower,
+  tickUpper,
+  fee,
+}: {
+  isInRange: boolean;
+  currentTick: number;
+  tickLower: number;
+  tickUpper: number;
+  fee: number;
+}) => {
+  // Calculate position of current price relative to range
+  let pricePosition = 0;
+  let belowRange = false;
+  let aboveRange = false;
+
+  if (currentTick < tickLower) {
+    belowRange = true;
+  } else if (currentTick > tickUpper) {
+    aboveRange = true;
+  } else {
+    // Calculate position as percentage within range
+    pricePosition = ((currentTick - tickLower) / (tickUpper - tickLower)) * 100;
+  }
+
+  // Calculate percentages relative to current price
+  const currentPrice = tickToPrice(currentTick);
+  const lowerPrice = tickToPrice(tickLower);
+  const upperPrice = tickToPrice(tickUpper);
+
+  const lowerPercent = calculatePricePercentage(lowerPrice, currentPrice);
+  const upperPercent = calculatePricePercentage(upperPrice, currentPrice);
+
+  // Calculate range width
+  const rangeWidth = calculateRangeWidth(tickLower, tickUpper);
+  const tickSpacing = TICK_SPACINGS[fee] || TICK_SPACINGS[3000];
+  const fullRange = isFullRange(tickLower, tickUpper, tickSpacing);
+
+  const bgColor = isInRange ? "green.400" : "gray.200";
+
+  return (
+    <VStack align="stretch" width="100%" gap={1}>
+      {/* Range info line */}
+      <Flex align="center" justify="space-between" width="100%" gap={2}>
+        <Flex align="center" gap={2}>
+          <Badge colorScheme={isInRange ? "green" : "gray"}>
+            {isInRange ? "In Range" : "Out of Range"}
+          </Badge>
+
+          {fullRange ? (
+            <Badge colorScheme="purple">Full Range</Badge>
+          ) : (
+            <Box>
+              <Badge colorScheme="blue">
+                {rangeWidth > 100
+                  ? "Wide"
+                  : rangeWidth > 30
+                    ? "Medium"
+                    : "Narrow"}
+              </Badge>
+              <Text fontSize="xs" as="span" ml={1}>
+                ({rangeWidth.toFixed(2)}%)
+              </Text>
+            </Box>
+          )}
+        </Flex>
+      </Flex>
+
+      {/* Price range line */}
+      <Flex justify="space-between" fontSize="xs" width="100%">
+        <Text color="gray.600">{formatPricePercentage(lowerPercent)}</Text>
+        <Text color="gray.600">{formatPricePercentage(upperPercent)}</Text>
+      </Flex>
+
+      {/* Visual range indicator */}
+      <Box position="relative" width="100%" height="10px">
+        {/* Background track */}
+        <Box width="100%" height="100%" bg="gray.100" borderRadius="md" />
+
+        {/* Active range */}
+        <Box
+          position="absolute"
+          left="0"
+          top="0"
+          height="100%"
+          width="100%"
+          bg={bgColor}
+          borderRadius="md"
+        />
+
+        {/* Lower boundary marker */}
+        <Box
+          position="absolute"
+          left="0%"
+          top="-2px"
+          height="14px"
+          width="2px"
+          bg="gray.600"
+        />
+
+        {/* Upper boundary marker */}
+        <Box
+          position="absolute"
+          right="0%"
+          top="-2px"
+          height="14px"
+          width="2px"
+          bg="gray.600"
+        />
+
+        {/* Current price indicator */}
+        <Box
+          position="absolute"
+          left={belowRange ? "0%" : aboveRange ? "100%" : `${pricePosition}%`}
+          top="-4px"
+          height="18px"
+          width="4px"
+          bg="white"
+          borderRadius="sm"
+          boxShadow="0 0 2px rgba(0,0,0,0.4)"
+          transform={belowRange || aboveRange ? "none" : "translateX(-50%)"}
+          zIndex="2"
+        />
+      </Box>
+    </VStack>
+  );
+};
+
 const PositionItem = ({
   position,
   isSelected,
@@ -140,113 +206,112 @@ const PositionItem = ({
 }) => {
   const [token0] = useEnsoToken({ address: position.token0 });
   const [token1] = useEnsoToken({ address: position.token1 });
-  const poolPrice = useV3PoolPrice(position);
   const { data: token0Price } = useEnsoPrice(token0?.address);
   const { data: token1Price } = useEnsoPrice(token1?.address);
 
-  const amounts =
-    poolPrice &&
-    getMintAmounts(
-      position.token0,
-      position.token1,
-      position.fee,
-      poolPrice?.[0],
-      poolPrice?.[1],
-      position.liquidity,
-      [position.tickLower, position.tickUpper],
-    );
+  // Use the token symbols from the subgraph if available
+  const token0Symbol = token0?.symbol || position.token0Symbol || "Token 0";
+  const token1Symbol = token1?.symbol || position.token1Symbol || "Token 1";
 
-  // Calculate token amounts with a simpler approach to avoid type errors
-  let token0Value = "0";
-  let token1Value = "0";
+  // Use getMintAmounts function to calculate token amounts
+  const amounts = getMintAmounts(
+    position.token0,
+    position.token1,
+    position.fee,
+    BigInt(position.poolSqrtPrice || "1"),
+    position.poolTick || 0,
+    position.liquidity,
+    [position.tickLower, position.tickUpper]
+  );
 
-  if (amounts && amounts[0]) {
-    token0Value = normalizeValue(amounts[0], token0?.decimals);
-  }
+  // Format token amounts for display
+  const token0Value = normalizeValue(amounts[0], token0?.decimals);
+  const token1Value = normalizeValue(amounts[1], token1?.decimals);
 
-  if (amounts && amounts[1]) {
-    token1Value = normalizeValue(amounts[1], token1?.decimals);
-  }
-
-  console.log(token0Value, token1Value, token0Price, token1Price);
-
+  // Calculate USD values
   const token0UsdValue = +token0Value * +(token0Price?.price || 0);
   const token1UsdValue = +token1Value * +(token1Price?.price || 0);
   const totalUsdValue = token0UsdValue + token1UsdValue;
+
+  // Check if position is in range
+  const isInRange =
+    position.poolTick !== undefined &&
+    position.poolTick >= position.tickLower &&
+    position.poolTick <= position.tickUpper;
 
   return (
     <Box
       borderWidth="1px"
       borderRadius="lg"
-      p={4}
-      _hover={{ shadow: "md" }}
-      transition="box-shadow 0.2s"
+      p={3}
+      transition="all 0.2s"
+      _hover={{ bg: isSelected ? "blue.50" : "gray.100" }}
       cursor="pointer"
       onClick={onSelect}
-      bg={isSelected ? "blue.50" : "white"}
+      bg={isSelected ? "blue.50" : "rgba(0, 0, 0, 0.02)"}
       borderColor={isSelected ? "blue.500" : "gray.200"}
     >
-      <Box mb={4}>
-        <Flex justify="space-between" align="center" gap={1}>
-          <Text fontSize="lg" fontWeight="semibold">
-            Position #{position.id}
+      <Flex justify="space-between" align="center" mb={2}>
+        <Flex align="center" gap={2}>
+          <Text fontSize="md" fontWeight="semibold">
+            #{position.id}
           </Text>
-          <Text fontSize="sm" color="gray.500">
-            Fee: {position.fee / 10000}%
+          <Text fontSize="xs" color="gray.500">
+            {position.fee / 10000}% fee
           </Text>
         </Flex>
-      </Box>
+      </Flex>
 
-      <Box mb={4}>
-        <Flex justify="space-between" mb={2}>
-          <Text color="gray.600">Token 0:</Text>
-          <Text fontFamily="mono" fontSize="sm">
-            {position.token0?.slice(0, 6)}...
-            {position.token0?.slice(-4)}
-          </Text>
-        </Flex>
-        <Flex justify="space-between" mb={2}>
-          <Text color="gray.600">Token 1:</Text>
-          <Text fontFamily="mono" fontSize="sm">
-            {position.token1?.slice(0, 6)}...
-            {position.token1?.slice(-4)}
-          </Text>
-        </Flex>
-        <Flex justify="space-between">
-          <Text color="gray.600">Liquidity:</Text>
-          <Text>{position.liquidity.toString()}</Text>
-        </Flex>
-      </Box>
+      <RangeIndicator
+        isInRange={isInRange}
+        currentTick={position.poolTick || 0}
+        tickLower={position.tickLower}
+        tickUpper={position.tickUpper}
+        fee={position.fee}
+      />
 
-      <Box borderTopWidth="1px" pt={3} mb={4}>
-        <Heading size="sm" mb={2}>
-          Token Amounts
-        </Heading>
-        <Flex justify="space-between" mb={2}>
-          <Text color="gray.600">{token0?.symbol || "Token 0"}:</Text>
-          <Box textAlign="right">
-            <Text>{token0Value}</Text>
-            <Text fontSize="xs" color="gray.500">
-              ${token0UsdValue.toFixed(2)}
-            </Text>
-          </Box>
-        </Flex>
-        <Flex justify="space-between" mb={2}>
-          <Text color="gray.600">{token1?.symbol || "Token 1"}:</Text>
-          <Box textAlign="right">
-            <Text>{token1Value}</Text>
-            <Text fontSize="xs" color="gray.500">
-              ${token1UsdValue.toFixed(2)}
-            </Text>
-          </Box>
-        </Flex>
-        <Flex justify="space-between" pt={1}>
-          <Text color="gray.600" fontWeight="medium">
-            Total Value:
+      <Flex justify="space-between" fontSize="sm" mb={1} mt={2}>
+        <Flex gap={1}>
+          <Text color="gray.600">{token0Symbol}</Text>
+          <Text fontFamily="mono" fontSize="xs" color="gray.500">
+            ({position.token0?.slice(0, 4)}...{position.token0?.slice(-2)})
           </Text>
+        </Flex>
+        <Flex direction="column" align="flex-end">
+          <Text>{token0Value}</Text>
+          <Text fontSize="xs" color="gray.500">
+            ${token0UsdValue.toFixed(2)}
+          </Text>
+        </Flex>
+      </Flex>
+
+      <Flex justify="space-between" fontSize="sm" mb={1}>
+        <Flex gap={1}>
+          <Text color="gray.600">{token1Symbol}</Text>
+          <Text fontFamily="mono" fontSize="xs" color="gray.500">
+            ({position.token1?.slice(0, 4)}...{position.token1?.slice(-2)})
+          </Text>
+        </Flex>
+        <Flex direction="column" align="flex-end">
+          <Text>{token1Value}</Text>
+          <Text fontSize="xs" color="gray.500">
+            ${token1UsdValue.toFixed(2)}
+          </Text>
+        </Flex>
+      </Flex>
+
+      <Flex
+        justify="space-between"
+        fontSize="sm"
+        mt={2}
+        pt={2}
+        borderTopWidth="1px"
+      >
+        <Flex align="center" gap={1}>
+          <Text color="gray.600">Total:</Text>
           <Text fontWeight="bold">${totalUsdValue.toFixed(2)}</Text>
         </Flex>
-      </Box>
+      </Flex>
     </Box>
   );
 };
@@ -255,69 +320,28 @@ const Essential = () => {
   const { address } = useAccount();
   const chainId = useChainId();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(
-    null,
+    null
   );
   const [sourceMode, setSourceMode] = useState<"token" | "position">("token");
   const [sourceToken, setSourceToken] = useState<Address>(
-    "0x0000000000000000000000000000000000000000",
+    "0x0000000000000000000000000000000000000000"
   );
   const [sourceValue, setSourceValue] = useState<string>("");
   const [sourceTokenData] = useEnsoToken({ address: sourceToken });
 
   const sourceAmount = denormalizeValue(sourceValue, sourceTokenData?.decimals);
 
-  const posManagerAddress = getPosManagerAddress(chainId);
-
-  const { data: balanceOf } = useReadContract({
-    address: posManagerAddress,
-    abi: posManagerAbi,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-  });
-
-  const tokenQueries = useMemo(() => {
-    if (!address || !balanceOf) return [];
-    return Array.from({ length: Number(balanceOf) }, (_, i) => ({
-      address: posManagerAddress as `0x${string}`,
-      abi: posManagerAbi,
-      functionName: "tokenOfOwnerByIndex",
-      args: [address, BigInt(i)] as const,
-    }));
-  }, [address, balanceOf, posManagerAddress]);
-
-  const { data: tokenIds } = useReadContracts(
-    // @ts-ignore
-    {
-      contracts: tokenQueries,
-    },
+  // Fetch positions using the subgraph
+  const { data: positionsData, isLoading: isLoadingPositions } = useV3Positions(
+    address,
+    chainId
   );
 
-  const positionQueries = useMemo(() => {
-    if (!tokenIds) return [];
-    return tokenIds.map((tokenId) => ({
-      address: posManagerAddress as `0x${string}`,
-      abi: posManagerAbi,
-      functionName: "positions",
-      args: [tokenId.result] as const,
-    }));
-  }, [tokenIds, posManagerAddress]);
-
-  const { data: positions } = useReadContracts({
-    contracts: positionQueries,
-  });
-
-  const positionsWithIds = useMemo(() => {
-    if (!positions || !tokenIds) return [];
-    // @ts-ignore
-    return (positions as { result: [string, number | bigint][] }[])
-      .filter((pos) => !!pos?.result)
-      .map(({ result }, index) => ({
-        ...mapV3Position(result),
-        id: tokenIds[index].result as unknown as number,
-      }))
-      .filter((position) => position.liquidity > 0n);
-  }, [positions, tokenIds]);
-  console.log(positionsWithIds);
+  // Convert subgraph data to Position interface
+  const positions = useMemo(() => {
+    if (!positionsData?.positions) return [];
+    return positionsData.positions.map(convertSubgraphPosition);
+  }, [positionsData]);
 
   // Get token price for SwapInput
   const { data: tokenPrice } = useEnsoPrice(sourceToken);
@@ -332,7 +356,7 @@ const Essential = () => {
   return (
     <Center>
       <Flex>
-        <Box p={6} minW="450px">
+        <Box p={6} w="450px">
           <Tabs.Root
             variant="line"
             colorScheme="blue"
@@ -345,16 +369,23 @@ const Essential = () => {
               <Tabs.Trigger value="token">Token</Tabs.Trigger>
               <Tabs.Trigger value="position">Position</Tabs.Trigger>
             </Tabs.List>
-            <Tabs.Content value="position">
+            <Tabs.Content
+              value="position"
+              bg="rgba(0, 0, 0, 0.02)"
+              borderRadius="lg"
+              p={4}
+            >
               <Heading as="h2" size="lg" mb={6}>
                 Your Uniswap V3 Positions
               </Heading>
-              {!balanceOf || balanceOf === 0n ? (
+              {isLoadingPositions ? (
+                <Text color="gray.600">Loading positions...</Text>
+              ) : positions.length === 0 ? (
                 <Text color="gray.600">You don't have any NFT positions</Text>
               ) : (
                 <Box>
                   <VStack gap={4}>
-                    {positionsWithIds.map((position) => (
+                    {positions.map((position) => (
                       <PositionItem
                         key={position.id}
                         position={position}
@@ -366,7 +397,12 @@ const Essential = () => {
                 </Box>
               )}
             </Tabs.Content>
-            <Tabs.Content value="token">
+            <Tabs.Content
+              value="token"
+              bg="rgba(0, 0, 0, 0.02)"
+              borderRadius="lg"
+              p={4}
+            >
               <Heading as="h2" size="lg" mb={6}>
                 Choose Token
               </Heading>

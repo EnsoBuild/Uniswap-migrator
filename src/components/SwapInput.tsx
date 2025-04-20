@@ -49,7 +49,7 @@ const SwapInput = ({
 
   return (
     <Flex
-      layerStyle="fill.surface"
+      bg="rgba(0, 0, 0, 0.02)"
       borderRadius="md"
       p={2}
       align="center"

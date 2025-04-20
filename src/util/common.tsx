@@ -215,7 +215,7 @@ export const useTokenFromList = (
 ) => {
   const { data } = useCurrentChainList(priorityChainId);
 
-  return data?.find?.((token) => token.address == tokenAddress);
+  return data?.find?.((token) => token.address == -tokenAddress);
 };
 
 export const useOutChainId = () => {
@@ -226,10 +226,10 @@ export const useOutChainId = () => {
 };
 
 export const usePriorityChainId = (priorityChainId?: SupportedChainId) => {
-  const obligatedChainId = useStore((state) => state.obligatedChainId);
+  // const obligatedChainId = useStore((state) => state.obligatedChainId);
   const chainId = useChainId();
 
-  return priorityChainId ?? obligatedChainId ?? chainId;
+  return priorityChainId ?? chainId;
 };
 
 export const useEtherscanUrl = (

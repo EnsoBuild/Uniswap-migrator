@@ -74,7 +74,7 @@ const useStargateTokens = (chainId: SupportedChainId, tokenSymbol: string) => {
   const foundOccurrency = stargatePools?.find(
     (pool) =>
       pool.chainKey === STARGATE_CHAIN_NAMES[chainId] &&
-      pool.token.symbol.includes(tokenSymbol),
+      pool.token.symbol.includes(tokenSymbol)
   );
 
   let underyingToken = foundOccurrency?.token.address.toLowerCase();
@@ -102,7 +102,7 @@ export interface BridgeBundleParams {
   amountIn?: string;
 }
 
-const PositionManagers = {
+const V4PositionManagers = {
   8453: "0x7c5f5a4bbd8fd63184577525326123b519429bdc",
   130: "0x4529a01c7a0410167c5740c487a8de60232617bf",
 };
@@ -122,7 +122,7 @@ const useBridgeBundle = (
     liquidity,
     amountIn,
   }: BridgeBundleParams,
-  enabled = false,
+  enabled = false
 ) => {
   const isSameChain = chainId === destinationChainId;
   let bundleActions: BundleAction[] = [];
@@ -136,21 +136,12 @@ const useBridgeBundle = (
         : "USDC";
     const [sourcePool, sourceToken] = useStargateTokens(
       chainId!,
-      tokenNameToBridge,
+      tokenNameToBridge
     );
     const [destinationPool, destinationToken] = useStargateTokens(
       destinationChainId!,
-      tokenNameToBridge,
+      tokenNameToBridge
     );
-    console.log("Stargate tokens:", {
-      tokenNameToBridge,
-      sourcePool,
-      sourceToken,
-      destinationPool,
-      destinationToken,
-      chainId,
-      destinationChainId,
-    });
 
     bundleActions = [
       {
@@ -189,7 +180,7 @@ const useBridgeBundle = (
               protocol: "uniswap-v4",
               action: "depositclmm",
               args: {
-                tokenOut: PositionManagers[destinationChainId],
+                tokenOut: V4PositionManagers[destinationChainId],
                 ticks,
                 tokenIn: [token0, token1],
                 poolFee,
@@ -261,7 +252,7 @@ const useBridgeBundle = (
               amountIn,
               tokenOut: sourceToken,
             },
-          } as BundleAction,
+          } as BundleAction
         );
       }
     }
@@ -289,7 +280,7 @@ const useBridgeBundle = (
           // @ts-ignore
           action: "depositclmm",
           args: {
-            tokenOut: PositionManagers[destinationChainId],
+            tokenOut: V4PositionManagers[destinationChainId],
             // @ts-ignore
             ticks,
             tokenIn: [token0, token1],
@@ -326,7 +317,7 @@ const useBridgeBundle = (
         // @ts-ignore
         action: "depositclmm",
         args: {
-          tokenOut: PositionManagers[destinationChainId],
+          tokenOut: V4PositionManagers[destinationChainId],
           // @ts-ignore
           ticks,
           tokenIn: [token0, token1],
@@ -346,13 +337,10 @@ const useBridgeBundle = (
     }
   }
 
-  // Log the final bundle actions for debugging
-  console.log("Final bundle actions:", bundleActions);
-
   const { data, isLoading } = useBundleData(
     { chainId, fromAddress: receiver, spender: receiver },
     bundleActions,
-    enabled,
+    enabled
   );
 
   const bundleData = {
@@ -363,9 +351,6 @@ const useBridgeBundle = (
     gas: data?.gas || "0",
   };
 
-  // Log the bundleData for debugging
-  console.log("Bundle data result:", bundleData);
-
   return {
     data: bundleData,
     isLoading,
@@ -375,7 +360,7 @@ const useBridgeBundle = (
 export const useBundleData = (
   bundleParams: BundleParams,
   bundleActions: BundleAction[],
-  enabled = true,
+  enabled = true
 ) => {
   const chainId = usePriorityChainId();
 
@@ -403,13 +388,12 @@ export const useEnsoData = (params: BridgeBundleParams) => {
       params.ticks[0] &&
       params.poolFee &&
       params.token0 &&
-      params.token1,
+      params.token1
   );
-  console.log("enabled", enabled, params);
 
   const { data: bundleData, isLoading: bundleLoading } = useBridgeBundle(
     params,
-    enabled,
+    enabled
   );
 
   const data = bundleData;
@@ -494,14 +478,6 @@ export const useEnsoToken = ({
       const foundToken = address ? getListToken(address) : undefined;
       return foundToken ? [foundToken] : [];
     }
-    // const ensoToken = data.data[0];
-    // let logoURI = ensoToken.logosUri[0];
-
-    // if (!logoURI) {
-    //   if (ensoToken.underlyingTokens?.length === 1)
-    //     logoURI = ensoToken.underlyingTokens[0].logosUri[0];
-    //   else logoURI = tokenFromList?.logoURI;
-    // }
 
     return data?.data?.map((token) => ({
       ...token,
@@ -520,7 +496,7 @@ export const useEnsoToken = ({
 
 export const useEnsoPrice = (
   address: Address,
-  priorityChainId?: SupportedChainId,
+  priorityChainId?: SupportedChainId
 ) => {
   const chainId = usePriorityChainId(priorityChainId);
 
@@ -542,6 +518,6 @@ export const useChainProtocols = (chainId: SupportedChainId) => {
   const { data } = useEnsoProtocols();
 
   return data?.filter((protocol: { chains: { id: number }[] }) =>
-    protocol.chains.some((chain) => chain.id === chainId),
+    protocol.chains.some((chain) => chain.id === chainId)
   );
 };

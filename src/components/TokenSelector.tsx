@@ -208,21 +208,19 @@ const TokenSelector = ({
       transition="all 0.2s ease-in-out"
     >
       <Select.Trigger
-        w={"fit-content"}
-        maxWidth={"100%"}
-        opacity={1}
-        css={{
-          "& > button": {
-            opacity: "1 !important",
-          },
-        }}
+        borderRadius={"lg"}
         minWidth={"150px"}
+        cursor={"pointer"}
+        transition="all 0.2s ease-in-out"
+        _hover={{
+          bg: "gray.100",
+        }}
       >
         <SelectValue />
       </Select.Trigger>
 
       <Select.Positioner>
-        <Select.Content w={"100%"} minWidth={"300px"} minHeight={"400px"}>
+        <Select.Content w={"100%"} minWidth={"300px"} minHeight={"425px"}>
           <Flex
             height={"100%"}
             flexDirection={"column"}

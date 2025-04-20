@@ -2,7 +2,15 @@ import {
   useV4UnichainPools,
   orderTokensAndAmounts,
   Position,
-  v3FactoryAddresses,
+  roundTick,
+  tickToPrice,
+  priceToTick,
+  calculatePricePercentage,
+  formatPricePercentage,
+  calculateRangeWidth,
+  isFullRange,
+  TickMath,
+  TICK_SPACINGS,
 } from "@/util/uniswap";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import TokenSelector from "@/components/TokenSelector";
@@ -15,18 +23,17 @@ import {
   Button,
   Input,
   Heading,
+  Spinner,
 } from "@chakra-ui/react";
 import { Address } from "viem";
 import { Radio, RadioGroup } from "@/components/ui/radio";
-import { TICK_SPACINGS, nearestUsableTick } from "@uniswap/v3-sdk";
-import { formatCompactUsd, normalizeValue } from "@/util";
+import { formatCompactUsd } from "@/util";
 import { BridgeBundleParams, useEnsoData, useEnsoToken } from "@/util/enso";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
 import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
 import { posManagerAbi } from "@/util/abis";
 import { useExtendedContractWrite, useApproveIfNecessary } from "@/util/wallet";
-import { TickMath } from "@uniswap/v3-sdk";
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
 
@@ -35,15 +42,6 @@ interface TargetSectionProps {
   sourceToken?: Address;
   sourceAmount?: string;
 }
-
-const roundTick = (tick: number, tickSpacing: number, roundUp: boolean) => {
-  if (roundUp) {
-    return Math.ceil(tick / tickSpacing) * tickSpacing;
-  } else {
-    return Math.floor(tick / tickSpacing) * tickSpacing;
-  }
-};
-console.log(TickMath.MIN_TICK);
 
 const TargetSection = ({
   selectedPosition,
@@ -60,8 +58,11 @@ const TargetSection = ({
   const [token0Data] = useEnsoToken({ address: token0, priorityChainId: 130 });
   const [token1Data] = useEnsoToken({ address: token1, priorityChainId: 130 });
 
-  console.log("token0Data", token0Data, token0);
-  console.log("token1Data", token1Data);
+  // Color mode values
+  const borderColor = "gray.200";
+  const accentColor = "rgb(76, 130, 251)";
+  const highlightBg = "blue.50";
+  const selectedBg = "gray.100";
 
   // Use orderTokensAndAmounts to ensure tokens are in the correct order
   const { tokens, inverted } = useMemo(() => {
@@ -74,7 +75,7 @@ const TargetSection = ({
   }, [token0, token1]);
 
   // Pass the ordered tokens to the hook
-  const { data } = useV4UnichainPools(
+  const { data, isLoading } = useV4UnichainPools(
     tokens[0] as Address | undefined,
     tokens[1] as Address | undefined
   );
@@ -105,17 +106,14 @@ const TargetSection = ({
 
   // Calculate current price from the pool's current tick
   const currentPoolPrice = useMemo(() => {
-    // Simplified conversion from tick to price for demonstration
+    // Use the imported tickToPrice function
     if (!selectedPoolData) return 1.0;
-    return Math.pow(1.0001, currentPoolTick);
+    return tickToPrice(currentPoolTick);
   }, [selectedPoolData, currentPoolTick]);
-  //   console.log("tokendata", token0Data, token1Data);
 
   const decimalsDiff = inverted
     ? 10 ** (token1Data?.decimals - token0Data?.decimals)
     : 10 ** (token0Data?.decimals - token1Data?.decimals);
-
-  console.log("decimalsDiff", decimalsDiff);
 
   const normalizePrice = useCallback(
     (price: number, back = false) => {
@@ -128,15 +126,11 @@ const TargetSection = ({
   );
 
   // Convert price to tick with rounding to the nearest tick spacing
-  const priceToTick = useCallback(
+  const handlePriceToTick = useCallback(
     (price: number, roundUp: boolean = false) => {
       if (!price || price <= 0) return 0;
-      // Simplified conversion from price to tick for demonstration
-      const rawTick = Math.log(price) / Math.log(1.0001);
-
-      return roundUp
-        ? roundTick(rawTick, tickSpacing, true)
-        : roundTick(rawTick, tickSpacing, false);
+      // Use the imported priceToTick function
+      return priceToTick(price, tickSpacing, roundUp);
     },
     [tickSpacing]
   );
@@ -144,8 +138,8 @@ const TargetSection = ({
   // Convert tick to price
   const tickToDisplayPrice = useCallback(
     (tick: number) => {
-      // Simplified conversion from tick to price for demonstration
-      const price = Math.pow(1.0001, tick);
+      // Use the imported tickToPrice function
+      const price = tickToPrice(tick);
       const normalizedPrice = normalizePrice(price);
 
       // Invert price if showing prices in token1
@@ -155,12 +149,12 @@ const TargetSection = ({
   );
 
   // Calculate percentage difference relative to current price, limited to +/-100%
-  const calculatePricePercentage = useCallback(
+  const getFormattedPricePercentage = useCallback(
     (price: number, currentPrice: number) => {
       if (!currentPrice) return "";
-      const percentDiff = (price / currentPrice - 1) * 100;
-      const limitedPercent = Math.max(Math.min(percentDiff, 100), -100);
-      return `(${limitedPercent.toFixed(2)}%)`;
+      // Use the common calculation functions
+      const percentDiff = calculatePricePercentage(price, currentPrice);
+      return percentDiff ? formatPricePercentage(percentDiff) : "";
     },
     []
   );
@@ -175,7 +169,7 @@ const TargetSection = ({
     [maxTick, tickToDisplayPrice]
   );
 
-  // Handle price input changes by converting to ticks
+  // Handle psrice input changes by converting to ticks
   const handleMinPriceChange = (value: string) => {
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue > 0) {
@@ -186,7 +180,7 @@ const TargetSection = ({
         priceToConvert = 1 / priceToConvert;
       }
 
-      const newTick = priceToTick(normalizePrice(priceToConvert, true));
+      const newTick = handlePriceToTick(normalizePrice(priceToConvert, true));
       setMinTick(newTick);
     }
   };
@@ -201,7 +195,7 @@ const TargetSection = ({
         priceToConvert = 1 / priceToConvert;
       }
 
-      const newTick = priceToTick(normalizePrice(priceToConvert, true));
+      const newTick = handlePriceToTick(normalizePrice(priceToConvert, true));
       setMaxTick(newTick);
     }
   };
@@ -216,8 +210,8 @@ const TargetSection = ({
       const maxPriceValue = currentPoolPrice * 1.0001;
 
       // Calculate ticks centered around the current pool tick
-      const newMinTick = priceToTick(minPriceValue);
-      const newMaxTick = priceToTick(maxPriceValue, true);
+      const newMinTick = handlePriceToTick(minPriceValue);
+      const newMaxTick = handlePriceToTick(maxPriceValue, true);
 
       setMinTick(newMinTick);
       setMaxTick(newMaxTick);
@@ -233,8 +227,8 @@ const TargetSection = ({
       const maxPriceValue = currentPoolPrice * (1 + percentage / 100);
 
       // Calculate ticks
-      const newMinTick = priceToTick(minPriceValue);
-      const newMaxTick = priceToTick(maxPriceValue, true);
+      const newMinTick = handlePriceToTick(minPriceValue);
+      const newMaxTick = handlePriceToTick(maxPriceValue, true);
 
       setMinTick(newMinTick);
       setMaxTick(newMaxTick);
@@ -316,252 +310,522 @@ const TargetSection = ({
     args: [ROUTER_ADDRESS, selectedPosition?.id],
   });
 
-  console.log("approvalData", approvalData);
-
   return (
-    <Box minW="550px" h="100%" mt={6}>
-      <Heading as="h2" size="lg" mb={6}>
-        Configure V4 Position
-      </Heading>
-
-      <Flex gap={4} mt={4}>
-        <TokenSelector
-          value={token0}
-          onChange={(value) => setToken0(value as Address)}
-          chainId={130}
-        />
-        <TokenSelector
-          value={token1}
-          onChange={(value) => setToken1(value as Address)}
-          chainId={130}
-        />
-      </Flex>
-
-      {data?.pools && data.pools.length > 0 ? (
-        <Box mt={6}>
-          <Text fontWeight="bold" mb={2}>
-            Available V4 Pools:
-          </Text>
-          <RadioGroup
-            value={selectedPool}
-            onValueChange={(details) => setSelectedPool(details.value)}
-          >
-            <VStack align="start" gap={2}>
-              {data.pools.map((pool) => (
-                <Radio key={pool.id} value={pool.id}>
-                  <Box>
-                    <Flex gap={2}>
-                      <Text>
-                        Fee: {(Number(pool.feeTier) / 10000).toFixed(2)}%
-                      </Text>
-                      <Text>
-                        TVL: {formatCompactUsd(pool.totalValueLockedUSD)}
-                      </Text>
-                    </Flex>
-                  </Box>
-                </Radio>
-              ))}
-            </VStack>
-          </RadioGroup>
-
-          {selectedPool && (
-            <Box mt={6}>
-              <Flex alignItems="center" mb={2}>
-                <Text fontWeight="bold" mr={2}>
-                  Price Range:
-                </Text>
-                {token0Data && token1Data && (
-                  <Flex alignItems="center" borderRadius="full" p={1}>
-                    <Text fontSize="sm" mr={2}>
-                      prices in
-                    </Text>
-                    <Button
-                      size="sm"
-                      onClick={() => setPricesInToken0(true)}
-                      borderRadius="full"
-                      mr={1}
-                      variant={pricesInToken0 ? "solid" : "outline"}
-                    >
-                      {token0Data.symbol}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={pricesInToken0 ? "outline" : "solid"}
-                      onClick={() => setPricesInToken0(false)}
-                      borderRadius="full"
-                    >
-                      {token1Data.symbol}
-                    </Button>
-                  </Flex>
-                )}
-              </Flex>
-              {selectedPoolData && (
-                <Text fontSize="sm" mb={2}>
-                  Current Price:{" "}
-                  {pricesInToken0
-                    ? normalizePrice(currentPoolPrice).toFixed(8)
-                    : (1 / normalizePrice(currentPoolPrice)).toFixed(8)}{" "}
-                  {baseToken}/{quoteToken}
-                  <br />
-                  Tick: {currentPoolTick}
-                </Text>
-              )}
-              <Flex gap={4} mb={4}>
-                <Box flex={1}>
-                  <Text mb={1}>Min Price</Text>
-                  <Flex>
-                    <Button
-                      size="sm"
-                      mr={1}
-                      onClick={() => {
-                        setMinTick(minTick - tickSpacing);
-                      }}
-                    >
-                      -
-                    </Button>
-                    <Input
-                      value={minPrice.toFixed(8)}
-                      onChange={(e) => handleMinPriceChange(e.target.value)}
-                      placeholder="0.0"
-                    />
-                    <Button
-                      size="sm"
-                      ml={1}
-                      onClick={() => {
-                        setMinTick(minTick + tickSpacing);
-                      }}
-                    >
-                      +
-                    </Button>
-                  </Flex>
-                  <Text fontSize="xs" mt={1}>
-                    Tick: {minTick}{" "}
-                    {currentPoolPrice
-                      ? calculatePricePercentage(
-                          minPrice,
-                          pricesInToken0
-                            ? normalizePrice(currentPoolPrice)
-                            : 1 / normalizePrice(currentPoolPrice)
-                        )
-                      : ""}
-                  </Text>
-                </Box>
-
-                <Box flex={1}>
-                  <Text mb={1}>Max Price</Text>
-                  <Flex>
-                    <Button
-                      size="sm"
-                      mr={1}
-                      onClick={() => {
-                        setMaxTick(maxTick - tickSpacing);
-                      }}
-                    >
-                      -
-                    </Button>
-                    <Input
-                      value={maxPrice.toFixed(8)}
-                      onChange={(e) => handleMaxPriceChange(e.target.value)}
-                      placeholder="0.0"
-                    />
-                    <Button
-                      size="sm"
-                      ml={1}
-                      onClick={() => {
-                        setMaxTick(maxTick + tickSpacing);
-                      }}
-                    >
-                      +
-                    </Button>
-                  </Flex>
-                  <Text fontSize="xs" mt={1}>
-                    Tick: {maxTick}{" "}
-                    {currentPoolPrice
-                      ? calculatePricePercentage(
-                          maxPrice,
-                          pricesInToken0
-                            ? normalizePrice(currentPoolPrice)
-                            : 1 / normalizePrice(currentPoolPrice)
-                        )
-                      : ""}
-                  </Text>
-                </Box>
-              </Flex>
-
-              <HStack mt={4} mb={6} gap={2}>
-                <Button variant="outline" onClick={() => setPriceRange(0)}>
-                  MIN
-                </Button>
-                <Button variant="outline" onClick={() => setPriceRange(1)}>
-                  1%
-                </Button>
-                <Button variant="outline" onClick={() => setPriceRange(5)}>
-                  5%
-                </Button>
-                <Button variant="outline" onClick={() => setPriceRange(10)}>
-                  10%
-                </Button>
-                <Button variant="outline" onClick={() => setPriceRange(20)}>
-                  20%
-                </Button>
-                <Button variant="outline" onClick={() => setPriceRange(100)}>
-                  FULL
-                </Button>
-              </HStack>
-            </Box>
-          )}
-        </Box>
-      ) : (
-        token0 &&
-        token1 && <Text mt={4}>No pools found for selected tokens</Text>
-      )}
-
-      {/* Add Approval and Migrate buttons */}
+    <Box minW="550px" maxW="700px" mx="auto" h="100%" mt={6}>
       <Box
-        mt={6}
-        display="flex"
-        justifyContent="center"
-        gap={4}
-        flexDirection="column"
-        alignItems="center"
+        bg="rgba(0, 0, 0, 0.02)"
+        borderRadius="xl"
+        border="1px"
+        borderColor={borderColor}
+        overflow="hidden"
       >
-        {selectedPosition && !isApproved && (
-          <Button
-            colorPalette="green"
+        <Box p={6}>
+          <Heading
+            as="h2"
             size="lg"
-            onClick={approveNft.write}
-            disabled={!selectedPosition}
-            loading={approveNft.isLoading}
+            mb={4}
+            textAlign="center"
+            fontWeight="semibold"
           >
-            Approve Position
-          </Button>
-        )}
+            Configure V4 Position on Unichain
+          </Heading>
 
-        {sourceToken && tokenApproval && (
-          <Button
-            colorPalette="green"
-            size="lg"
-            onClick={tokenApproval.write}
-            disabled={!sourceToken || !sourceAmount || sourceAmount === "0"}
-            loading={tokenApproval.isLoading}
+          <HStack gap={4} mt={4} mb={6}>
+            <Box flex={1}>
+              <TokenSelector
+                value={token0}
+                onChange={(value) => setToken0(value as Address)}
+                chainId={130}
+              />
+            </Box>
+            <Box flex={1}>
+              <TokenSelector
+                value={token1}
+                onChange={(value) => setToken1(value as Address)}
+                chainId={130}
+              />
+            </Box>
+          </HStack>
+
+          {token0 && token1 && isLoading && (
+            <Flex justify="center" align="center" py={8}>
+              <Spinner size="xl" color="blue.500" />
+            </Flex>
+          )}
+
+          {data?.pools && data.pools.length > 0 ? (
+            <>
+              <Box mt={6} mb={4} p={1} borderRadius="lg" border="1px">
+                <Text
+                  fontWeight="bold"
+                  mb={3}
+                  fontSize="md"
+                  color="gray.700"
+                  px={2}
+                >
+                  Available Pools:
+                </Text>
+                <RadioGroup
+                  value={selectedPool}
+                  onValueChange={(details) => setSelectedPool(details.value)}
+                >
+                  <HStack wrap="wrap" gap={0} justify="center" align="stretch">
+                    {Object.entries(TICK_SPACINGS).map(([feeTier, spacing]) => {
+                      const pool = data?.pools?.find(
+                        (p) => p.feeTier === feeTier
+                      );
+
+                      return (
+                        <Box
+                          key={feeTier}
+                          py={2}
+                          px={4}
+                          mb={2}
+                          mr={2}
+                          borderRadius="lg"
+                          borderWidth="1px"
+                          borderColor={
+                            pool && selectedPool === pool.id
+                              ? accentColor
+                              : borderColor
+                          }
+                          bg={
+                            pool && selectedPool === pool.id
+                              ? highlightBg
+                              : "transparent"
+                          }
+                          cursor={pool ? "pointer" : "default"}
+                          transition="all 0.2s"
+                          _hover={{ bg: pool ? selectedBg : "transparent" }}
+                          onClick={() => pool && setSelectedPool(pool.id)}
+                          opacity={pool ? 1 : 0.7}
+                        >
+                          {pool ? (
+                            <>
+                              <Radio value={pool.id} display="none">
+                                <></>
+                              </Radio>
+                              <VStack gap={0} align="center">
+                                <Text fontWeight="bold" fontSize="md">
+                                  {(Number(feeTier) / 10000).toFixed(2)}%
+                                </Text>
+                                <Flex fontSize="sm" color="gray.500" gap={1}>
+                                  TVL:{" "}
+                                  <Text fontWeight="semibold">
+                                    {formatCompactUsd(pool.totalValueLockedUSD)}
+                                  </Text>
+                                </Flex>
+                              </VStack>
+                            </>
+                          ) : (
+                            <VStack gap={0} align="center">
+                              <Text fontWeight="bold" fontSize="md">
+                                {(Number(feeTier) / 10000).toFixed(2)}%
+                              </Text>
+                              <Text fontSize="sm" color="gray.500">
+                                N/A
+                              </Text>
+                            </VStack>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </HStack>
+                </RadioGroup>
+              </Box>
+
+              {selectedPool && (
+                <>
+                  <Box h="1px" bg="gray.200" my={4} />
+
+                  <Box mt={4}>
+                    <Flex justify="space-between" align="center" mb={4}>
+                      <Text fontWeight="bold" fontSize="md">
+                        Price Range
+                      </Text>
+
+                      {token0Data && token1Data && (
+                        <Flex alignItems="center" p={1} borderRadius="full">
+                          <Text fontSize="xs" mr={2} opacity={0.8}>
+                            prices in
+                          </Text>
+                          <HStack gap={1}>
+                            <Button
+                              size="xs"
+                              onClick={() => setPricesInToken0(true)}
+                              borderRadius="full"
+                              bg={pricesInToken0 ? accentColor : "transparent"}
+                              color={pricesInToken0 ? "white" : "inherit"}
+                              _hover={{
+                                bg: pricesInToken0 ? accentColor : selectedBg,
+                              }}
+                              h="24px"
+                              minW="40px"
+                            >
+                              {token0Data.symbol}
+                            </Button>
+                            <Button
+                              size="xs"
+                              bg={!pricesInToken0 ? accentColor : "transparent"}
+                              color={!pricesInToken0 ? "white" : "inherit"}
+                              _hover={{
+                                bg: !pricesInToken0 ? accentColor : selectedBg,
+                              }}
+                              onClick={() => setPricesInToken0(false)}
+                              borderRadius="full"
+                              h="24px"
+                              minW="40px"
+                            >
+                              {token1Data.symbol}
+                            </Button>
+                          </HStack>
+                        </Flex>
+                      )}
+                    </Flex>
+
+                    {selectedPoolData && (
+                      <Box
+                        p={3}
+                        bg="rgba(0, 0, 0, 0.02)"
+                        borderRadius="lg"
+                        mb={4}
+                      >
+                        <Flex justify="space-between" align="center">
+                          <Text fontWeight="medium" fontSize="sm">
+                            Current Price
+                          </Text>
+                          <Text fontWeight="bold" fontSize="sm">
+                            {pricesInToken0
+                              ? normalizePrice(currentPoolPrice).toFixed(8)
+                              : (1 / normalizePrice(currentPoolPrice)).toFixed(
+                                  8
+                                )}{" "}
+                            {baseToken}/{quoteToken}
+                          </Text>
+                        </Flex>
+                        <Text fontSize="xs" color="gray.500" textAlign="right">
+                          Tick: {currentPoolTick}
+                        </Text>
+                      </Box>
+                    )}
+
+                    <Flex gap={4} mb={4}>
+                      <Box flex={1}>
+                        <Text mb={1} fontSize="sm" fontWeight="medium">
+                          Min Price
+                        </Text>
+                        <Flex position="relative">
+                          <Button
+                            size="sm"
+                            position="absolute"
+                            left={0}
+                            top="0"
+                            zIndex={2}
+                            h="40px"
+                            onClick={() => {
+                              setMinTick(minTick - tickSpacing);
+                            }}
+                            borderRightRadius={0}
+                            variant="outline"
+                          >
+                            -
+                          </Button>
+                          <Input
+                            value={minPrice.toFixed(8)}
+                            onChange={(e) =>
+                              handleMinPriceChange(e.target.value)
+                            }
+                            placeholder="0.0"
+                            pl="36px"
+                            pr="36px"
+                            borderRadius="lg"
+                            h="40px"
+                            textAlign="center"
+                          />
+                          <Button
+                            size="sm"
+                            position="absolute"
+                            right={0}
+                            top="0"
+                            zIndex={2}
+                            h="40px"
+                            onClick={() => {
+                              setMinTick(minTick + tickSpacing);
+                            }}
+                            borderLeftRadius={0}
+                            variant="outline"
+                          >
+                            +
+                          </Button>
+                        </Flex>
+                        <Flex justify="space-between" mt={1}>
+                          <Text fontSize="xs" color="gray.500">
+                            Tick: {minTick}
+                          </Text>
+                          {currentPoolPrice && (
+                            <Box
+                              px={1.5}
+                              py={0.5}
+                              fontSize="xs"
+                              fontWeight="medium"
+                              borderRadius="sm"
+                              bg={
+                                minPrice <
+                                (pricesInToken0
+                                  ? normalizePrice(currentPoolPrice)
+                                  : 1 / normalizePrice(currentPoolPrice))
+                                  ? "red.100"
+                                  : "green.100"
+                              }
+                              color={
+                                minPrice <
+                                (pricesInToken0
+                                  ? normalizePrice(currentPoolPrice)
+                                  : 1 / normalizePrice(currentPoolPrice))
+                                  ? "red.700"
+                                  : "green.700"
+                              }
+                            >
+                              {getFormattedPricePercentage(
+                                minPrice,
+                                pricesInToken0
+                                  ? normalizePrice(currentPoolPrice)
+                                  : 1 / normalizePrice(currentPoolPrice)
+                              )}
+                            </Box>
+                          )}
+                        </Flex>
+                      </Box>
+
+                      <Box flex={1}>
+                        <Text mb={1} fontSize="sm" fontWeight="medium">
+                          Max Price
+                        </Text>
+                        <Flex position="relative">
+                          <Button
+                            size="sm"
+                            position="absolute"
+                            left={0}
+                            top="0"
+                            zIndex={2}
+                            h="40px"
+                            onClick={() => {
+                              setMaxTick(maxTick - tickSpacing);
+                            }}
+                            borderRightRadius={0}
+                            variant="outline"
+                          >
+                            -
+                          </Button>
+                          <Input
+                            value={maxPrice.toFixed(8)}
+                            onChange={(e) =>
+                              handleMaxPriceChange(e.target.value)
+                            }
+                            placeholder="0.0"
+                            pl="36px"
+                            pr="36px"
+                            borderRadius="lg"
+                            h="40px"
+                            textAlign="center"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            position="absolute"
+                            right={0}
+                            top="0"
+                            zIndex={2}
+                            h="40px"
+                            onClick={() => {
+                              setMaxTick(maxTick + tickSpacing);
+                            }}
+                            borderLeftRadius={0}
+                          >
+                            +
+                          </Button>
+                        </Flex>
+                        <Flex justify="space-between" mt={1}>
+                          <Text fontSize="xs" color="gray.500">
+                            Tick: {maxTick}
+                          </Text>
+                          {currentPoolPrice && (
+                            <Box
+                              px={1.5}
+                              py={0.5}
+                              fontSize="xs"
+                              fontWeight="medium"
+                              borderRadius="sm"
+                              bg={
+                                maxPrice >
+                                (pricesInToken0
+                                  ? normalizePrice(currentPoolPrice)
+                                  : 1 / normalizePrice(currentPoolPrice))
+                                  ? "green.100"
+                                  : "red.100"
+                              }
+                              color={
+                                maxPrice >
+                                (pricesInToken0
+                                  ? normalizePrice(currentPoolPrice)
+                                  : 1 / normalizePrice(currentPoolPrice))
+                                  ? "green.700"
+                                  : "red.700"
+                              }
+                            >
+                              {getFormattedPricePercentage(
+                                maxPrice,
+                                pricesInToken0
+                                  ? normalizePrice(currentPoolPrice)
+                                  : 1 / normalizePrice(currentPoolPrice)
+                              )}
+                            </Box>
+                          )}
+                        </Flex>
+                      </Box>
+                    </Flex>
+
+                    <Box
+                      bg="rgba(0, 0, 0, 0.02)"
+                      borderRadius="xl"
+                      p={2}
+                      mb={4}
+                    >
+                      <HStack justify="space-between" gap={1}>
+                        {[
+                          { label: "MIN", value: 0 },
+                          { label: "1%", value: 1 },
+                          { label: "5%", value: 5 },
+                          { label: "10%", value: 10 },
+                          { label: "20%", value: 20 },
+                          { label: "FULL", value: 100 },
+                        ].map((range, index) => (
+                          <Button
+                            key={range.label}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPriceRange(range.value)}
+                            borderRadius="lg"
+                            fontWeight="normal"
+                            // colorPalette="blue"
+                            flex={1}
+                            h="32px"
+                          >
+                            {range.label}
+                          </Button>
+                        ))}
+                      </HStack>
+                    </Box>
+
+                    {/* Show range width */}
+                    <Box
+                      bg="rgba(0, 0, 0, 0.02)"
+                      py={2}
+                      px={3}
+                      borderRadius="md"
+                      mb={4}
+                    >
+                      <Flex justify="center" align="center">
+                        <Text fontSize="sm" fontWeight="medium">
+                          Range width:{" "}
+                          <Text as="span" fontWeight="bold">
+                            {calculateRangeWidth(minTick, maxTick).toFixed(2)}%
+                          </Text>
+                          {isFullRange(minTick, maxTick, tickSpacing) && (
+                            <Box
+                              ml={2}
+                              px={2}
+                              py={0.5}
+                              bg="green.100"
+                              color="green.800"
+                              borderRadius="md"
+                              fontSize="xs"
+                              display="inline-block"
+                            >
+                              Full Range
+                            </Box>
+                          )}
+                        </Text>
+                      </Flex>
+                    </Box>
+                  </Box>
+                </>
+              )}
+            </>
+          ) : (
+            token0 &&
+            token1 && (
+              <Box mt={4} p={4} borderRadius="md" bg="gray.50">
+                <Text textAlign="center">
+                  No pools found for selected tokens
+                </Text>
+              </Box>
+            )
+          )}
+
+          {/* Add Approval and Migrate buttons */}
+          <Box
+            mt={6}
+            display="flex"
+            justifyContent="center"
+            gap={4}
+            flexDirection="column"
+            alignItems="center"
           >
-            Approve
-          </Button>
-        )}
+            {selectedPosition && !isApproved && (
+              <Button
+                variant="subtle"
+                w="full"
+                colorPalette="green"
+                size="lg"
+                onClick={approveNft.write}
+                disabled={!selectedPosition}
+                loading={approveNft.isLoading}
+                borderRadius="xl"
+                h="56px"
+                fontWeight="semibold"
+              >
+                Approve Position
+              </Button>
+            )}
 
-        <Button
-          colorPalette="blue"
-          size="lg"
-          loading={ensoResult.isLoading}
-          onClick={ensoResult.sendTransaction?.send}
-          disabled={
-            !ensoResult.data.tx ||
-            !ensoResult.sendTransaction?.send ||
-            !isApproved
-          }
-        >
-          Migrate
-        </Button>
+            {sourceToken && tokenApproval && (
+              <Button
+                variant="subtle"
+                w="full"
+                colorPalette="green"
+                size="lg"
+                onClick={tokenApproval.write}
+                disabled={!sourceToken || !sourceAmount || sourceAmount === "0"}
+                loading={tokenApproval.isLoading}
+                borderRadius="xl"
+                h="56px"
+                fontWeight="semibold"
+              >
+                Approve
+              </Button>
+            )}
+
+            <Button
+              w="full"
+              colorPalette="blue"
+              size="lg"
+              loading={ensoResult.isLoading}
+              onClick={ensoResult.sendTransaction?.send}
+              disabled={
+                !ensoResult.data.tx ||
+                !ensoResult.sendTransaction?.send ||
+                !isApproved
+              }
+              borderRadius="xl"
+              h="56px"
+              fontWeight="semibold"
+              bg="#5D8EFA"
+            >
+              Migrate
+            </Button>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
