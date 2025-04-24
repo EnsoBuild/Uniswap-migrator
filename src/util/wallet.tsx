@@ -19,7 +19,7 @@ import {
 } from "./common";
 import { ETH_ADDRESS } from "@/constants";
 import { formatNumber, normalizeValue } from "@/util/index";
-
+import { toaster } from "@/components/ui/toaster";
 
 enum TxState {
   Success,
@@ -138,10 +138,11 @@ export const useExtendedContractWrite = (
       // @ts-ignore
       contractWrite.writeContract(writeContractVariables, {
         onError: (error: BaseError) => {
-          // setNotification({
-          //   message: error?.shortMessage || error.message,
-          //   variant: NotifyType.Error,
-          // });
+          toaster.create({
+            title: "Error",
+            description: error?.shortMessage || error.message,
+            type: "error",
+          });
           console.error(error);
         },
       });
@@ -161,6 +162,9 @@ const useWatchTransactionHash = <
   usedWriteContract: T
 ) => {
   // const addRecentTransaction = useAddRecentTransaction();
+  const [loadingToastId, setLoadingToastId] = useState<string | undefined>(
+    undefined
+  );
 
   const { data: hash, reset } = usedWriteContract;
 
@@ -173,37 +177,71 @@ const useWatchTransactionHash = <
   });
   const link = useEtherscanUrl(hash);
 
-  console.log(description,link)
+  // console.log(description,link)
 
   const writeLoading = usedWriteContract.status === "pending";
 
   // toast error if tx failed to be mined and success if it is having confirmation
   useEffect(() => {
     if (waitForTransaction.error) {
-      // setNotification({
-      //   message: waitForTransaction.error.message,
-      //   variant: NotifyType.Error,
-      //   link,
-      // });
+      // Close loading toast if it exists
+      if (loadingToastId) {
+        toaster.remove(loadingToastId);
+        setLoadingToastId(undefined);
+      }
+      toaster.create({
+        title: "Error",
+        description: waitForTransaction.error.message,
+        type: "error",
+        action: link
+          ? {
+              label: "View on Explorer",
+              onClick: () => window.open(link, "_blank"),
+            }
+          : undefined,
+      });
     } else if (waitForTransaction.data) {
+      // Close loading toast if it exists
+      if (loadingToastId) {
+        toaster.remove(loadingToastId);
+        setLoadingToastId(undefined);
+      }
+
       // reset tx hash to eliminate recurring notifications
       reset();
-      // setNotification({
-      //   message: description,
-      //   variant: NotifyType.Success,
-      //   link,
-      // });
+
+      toaster.create({
+        title: "Success",
+        description: description,
+        type: "success",
+        action: link
+          ? {
+              label: "View on Explorer",
+              onClick: () => window.open(link, "_blank"),
+            }
+          : undefined,
+      });
     } else if (waitForTransaction.isLoading) {
-      // setNotification({
-      //   message: description,
-      //   variant: NotifyType.Loading,
-      //   link,
-      // });
+      const id = toaster.create({
+        title: "Transaction Pending",
+        description: description,
+        type: "loading",
+        action: link
+          ? {
+              label: "View on Explorer",
+              onClick: () => window.open(link, "_blank"),
+            }
+          : undefined,
+      });
+      setLoadingToastId(id);
     }
   }, [
     waitForTransaction.data,
     waitForTransaction.error,
     waitForTransaction.isLoading,
+    description,
+    link,
+    reset,
   ]);
 
   return {
@@ -236,11 +274,12 @@ export const useExtendedSendTransaction = (
   const send = useCallback(() => {
     sendTransaction.sendTransaction(args, {
       onError: (error) => {
-        // setNotification({
-        //   // @ts-ignore
-        //   message: error?.cause?.shortMessage,
-        //   variant: NotifyType.Error,
-        // });
+        toaster.create({
+          title: "Error",
+          // @ts-ignore
+          description: error?.cause?.shortMessage || error.message,
+          type: "error",
+        });
         console.error(error);
       },
     });
@@ -270,5 +309,5 @@ export const useApproveIfNecessary = (
 };
 
 export const useSendEnsoTransaction = (ensoTxData: any) => {
-  return useExtendedSendTransaction(`Bridging`, ensoTxData);
+  return useExtendedSendTransaction("Migrating", ensoTxData);
 };

@@ -2,10 +2,10 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Providers from "@/components/Providers";
 import Essential from "@/components/Essential";
 import { ColorModeButton } from "@/components/ui/color-mode";
+import { Toaster } from "@/components/ui/toaster";
 import { Provider } from "@/components/ui/provider";
 
 import "./App.css";
-
 function App() {
   return (
     <div style={{ width: "100%", height: "100%" }}>
@@ -37,6 +37,7 @@ function App() {
             </div>
           </div>
           <Essential />
+          <Toaster />
         </Providers>
       </Provider>
     </div>

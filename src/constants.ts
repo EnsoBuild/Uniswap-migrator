@@ -148,8 +148,8 @@ export const CHAINS_ETHERSCAN: Record<SupportedChainId, string> = {
   [SupportedChainId.GNOSIS]: "https://gnosisscan.io/",
   [SupportedChainId.AVALANCHE]: "https://cchain.explorer.avax.network",
   [SupportedChainId.BERACHAIN]: "https://berascan.com",
-  [SupportedChainId.SONIC]: "https://sonicscan.io",
-  [SupportedChainId.UNICHAIN]: "https://unichain.io",
+  [SupportedChainId.SONIC]: "https://sonicscan.org",
+  [SupportedChainId.UNICHAIN]: "https://uniscan.xyz/",
 };
 
 export const USDC_ADDRESS: Record<SupportedChainId, Address> = {

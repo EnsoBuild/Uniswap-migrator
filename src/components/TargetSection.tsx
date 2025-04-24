@@ -5,14 +5,12 @@ import {
   roundTick,
   tickToPrice,
   priceToTick,
-  calculatePricePercentage,
-  formatPricePercentage,
   calculateRangeWidth,
   isFullRange,
   TickMath,
   TICK_SPACINGS,
 } from "@/util/uniswap";
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import TokenSelector from "@/components/TokenSelector";
 import {
   Flex,
@@ -21,7 +19,6 @@ import {
   Text,
   HStack,
   Button,
-  Input,
   Heading,
   Spinner,
 } from "@chakra-ui/react";
@@ -34,171 +31,9 @@ import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
 import { posManagerAbi } from "@/util/abis";
 import { useExtendedContractWrite, useApproveIfNecessary } from "@/util/wallet";
+import TickedPriceInput from "./TickedPriceInput";
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
-
-// PriceInput component for unified min/max price input
-interface PriceInputProps {
-  label: string;
-  tick: number;
-  tickSpacing: number;
-  currentPoolTick: number;
-  pricesInToken0: boolean;
-  baseToken?: string;
-  quoteToken?: string;
-  decimalsDiff: number;
-  onTickChange: (tick: number) => void;
-  showLowerPercent?: boolean;
-}
-
-const PriceInput = ({
-  label,
-  tick,
-  tickSpacing,
-  currentPoolTick,
-  pricesInToken0,
-  baseToken,
-  quoteToken,
-  decimalsDiff,
-  onTickChange,
-  showLowerPercent = false,
-}: PriceInputProps) => {
-  // Calculate price from tick
-  const price = useMemo(() => {
-    const rawPrice = tickToPrice(tick);
-    const normalizedPrice = rawPrice * decimalsDiff;
-    return pricesInToken0 ? normalizedPrice : 1 / normalizedPrice;
-  }, [tick, decimalsDiff, pricesInToken0]);
-
-  // Convert price string to tick
-  const handlePriceChange = (value: string) => {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue > 0) {
-      let priceToConvert = numValue;
-
-      // Convert from display price to internal price if needed
-      if (!pricesInToken0) {
-        priceToConvert = 1 / priceToConvert;
-      }
-
-      // Convert to internal price format by reversing decimals normalization
-      const denormalizedPrice = priceToConvert / decimalsDiff;
-
-      // Convert to tick with appropriate rounding
-      const newTick = priceToTick(
-        denormalizedPrice,
-        tickSpacing,
-        !showLowerPercent
-      );
-      onTickChange(newTick);
-    }
-  };
-
-  // Calculate current pool price for comparison
-  const currentPoolPrice = useMemo(() => {
-    const rawPrice = tickToPrice(currentPoolTick);
-    const normalizedPrice = rawPrice * decimalsDiff;
-    return pricesInToken0 ? normalizedPrice : 1 / normalizedPrice;
-  }, [currentPoolTick, decimalsDiff, pricesInToken0]);
-
-  // Calculate percentage difference relative to current price, limited to +/-100%
-  const getFormattedPricePercentage = useCallback(
-    (price: number, currentPrice: number) => {
-      if (!currentPrice) return "";
-      const percentDiff = calculatePricePercentage(price, currentPrice);
-      return percentDiff ? formatPricePercentage(percentDiff) : "";
-    },
-    []
-  );
-
-  const isAboveCurrent = price > currentPoolPrice;
-  const isBelowCurrent = price < currentPoolPrice;
-
-  // Adjust the color based on whether this is min or max price and relation to current price
-  const getPercentColor = () => {
-    if (showLowerPercent) {
-      return isBelowCurrent ? "red.700" : "green.700";
-    } else {
-      return isAboveCurrent ? "green.700" : "red.700";
-    }
-  };
-
-  const getPercentBg = () => {
-    if (showLowerPercent) {
-      return isBelowCurrent ? "red.100" : "green.100";
-    } else {
-      return isAboveCurrent ? "green.100" : "red.100";
-    }
-  };
-
-  return (
-    <Box flex={1}>
-      <Text mb={1} fontSize="sm" fontWeight="medium">
-        {label} Price
-      </Text>
-      <Flex position="relative">
-        <Button
-          size="sm"
-          position="absolute"
-          left={0}
-          top="0"
-          zIndex={2}
-          h="40px"
-          onClick={() => {
-            onTickChange(tick - tickSpacing);
-          }}
-          borderRightRadius={0}
-          variant="outline"
-        >
-          -
-        </Button>
-        <Input
-          value={price.toFixed(8)}
-          onChange={(e) => handlePriceChange(e.target.value)}
-          placeholder="0.0"
-          pl="36px"
-          pr="36px"
-          borderRadius="lg"
-          h="40px"
-          textAlign="center"
-        />
-        <Button
-          size="sm"
-          position="absolute"
-          right={0}
-          top="0"
-          zIndex={2}
-          h="40px"
-          onClick={() => {
-            onTickChange(tick + tickSpacing);
-          }}
-          borderLeftRadius={0}
-          variant="outline"
-        >
-          +
-        </Button>
-      </Flex>
-      <Flex justify="space-between" mt={1}>
-        <Text fontSize="xs" color="gray.500">
-          Tick: {tick}
-        </Text>
-        {currentPoolPrice && (
-          <Box
-            px={1.5}
-            py={0.5}
-            fontSize="xs"
-            fontWeight="medium"
-            borderRadius="sm"
-            bg={getPercentBg()}
-            color={getPercentColor()}
-          >
-            {getFormattedPricePercentage(price, currentPoolPrice)}
-          </Box>
-        )}
-      </Flex>
-    </Box>
-  );
-};
 
 interface TargetSectionProps {
   selectedPosition: Position | null;
@@ -263,7 +98,11 @@ const TargetSection = ({
       return TICK_SPACINGS[feeTier as keyof typeof TICK_SPACINGS];
     }
     return TICK_SPACINGS[3000];
-  }, [selectedPoolData]);
+  }, [
+    selectedPoolData?.feeTier,
+    selectedPoolData?.token0,
+    selectedPoolData?.token1,
+  ]);
 
   // Get current tick from the pool
   const currentPoolTick = useMemo(() => {
@@ -580,7 +419,7 @@ const TargetSection = ({
                     )}
 
                     <Flex gap={4} mb={4}>
-                      <PriceInput
+                      <TickedPriceInput
                         label="Min"
                         tick={minTick}
                         tickSpacing={tickSpacing}
@@ -593,7 +432,7 @@ const TargetSection = ({
                         showLowerPercent={true}
                       />
 
-                      <PriceInput
+                      <TickedPriceInput
                         label="Max"
                         tick={maxTick}
                         tickSpacing={tickSpacing}
@@ -620,7 +459,7 @@ const TargetSection = ({
                           { label: "10%", value: 10 },
                           { label: "20%", value: 20 },
                           { label: "FULL", value: 100 },
-                        ].map((range, index) => (
+                        ].map((range) => (
                           <Button
                             key={range.label}
                             variant="outline"
