@@ -37,6 +37,169 @@ import { useExtendedContractWrite, useApproveIfNecessary } from "@/util/wallet";
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
 
+// PriceInput component for unified min/max price input
+interface PriceInputProps {
+  label: string;
+  tick: number;
+  tickSpacing: number;
+  currentPoolTick: number;
+  pricesInToken0: boolean;
+  baseToken?: string;
+  quoteToken?: string;
+  decimalsDiff: number;
+  onTickChange: (tick: number) => void;
+  showLowerPercent?: boolean;
+}
+
+const PriceInput = ({
+  label,
+  tick,
+  tickSpacing,
+  currentPoolTick,
+  pricesInToken0,
+  baseToken,
+  quoteToken,
+  decimalsDiff,
+  onTickChange,
+  showLowerPercent = false,
+}: PriceInputProps) => {
+  // Calculate price from tick
+  const price = useMemo(() => {
+    const rawPrice = tickToPrice(tick);
+    const normalizedPrice = rawPrice * decimalsDiff;
+    return pricesInToken0 ? normalizedPrice : 1 / normalizedPrice;
+  }, [tick, decimalsDiff, pricesInToken0]);
+
+  // Convert price string to tick
+  const handlePriceChange = (value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue > 0) {
+      let priceToConvert = numValue;
+
+      // Convert from display price to internal price if needed
+      if (!pricesInToken0) {
+        priceToConvert = 1 / priceToConvert;
+      }
+
+      // Convert to internal price format by reversing decimals normalization
+      const denormalizedPrice = priceToConvert / decimalsDiff;
+
+      // Convert to tick with appropriate rounding
+      const newTick = priceToTick(
+        denormalizedPrice,
+        tickSpacing,
+        !showLowerPercent
+      );
+      onTickChange(newTick);
+    }
+  };
+
+  // Calculate current pool price for comparison
+  const currentPoolPrice = useMemo(() => {
+    const rawPrice = tickToPrice(currentPoolTick);
+    const normalizedPrice = rawPrice * decimalsDiff;
+    return pricesInToken0 ? normalizedPrice : 1 / normalizedPrice;
+  }, [currentPoolTick, decimalsDiff, pricesInToken0]);
+
+  // Calculate percentage difference relative to current price, limited to +/-100%
+  const getFormattedPricePercentage = useCallback(
+    (price: number, currentPrice: number) => {
+      if (!currentPrice) return "";
+      const percentDiff = calculatePricePercentage(price, currentPrice);
+      return percentDiff ? formatPricePercentage(percentDiff) : "";
+    },
+    []
+  );
+
+  const isAboveCurrent = price > currentPoolPrice;
+  const isBelowCurrent = price < currentPoolPrice;
+
+  // Adjust the color based on whether this is min or max price and relation to current price
+  const getPercentColor = () => {
+    if (showLowerPercent) {
+      return isBelowCurrent ? "red.700" : "green.700";
+    } else {
+      return isAboveCurrent ? "green.700" : "red.700";
+    }
+  };
+
+  const getPercentBg = () => {
+    if (showLowerPercent) {
+      return isBelowCurrent ? "red.100" : "green.100";
+    } else {
+      return isAboveCurrent ? "green.100" : "red.100";
+    }
+  };
+
+  return (
+    <Box flex={1}>
+      <Text mb={1} fontSize="sm" fontWeight="medium">
+        {label} Price
+      </Text>
+      <Flex position="relative">
+        <Button
+          size="sm"
+          position="absolute"
+          left={0}
+          top="0"
+          zIndex={2}
+          h="40px"
+          onClick={() => {
+            onTickChange(tick - tickSpacing);
+          }}
+          borderRightRadius={0}
+          variant="outline"
+        >
+          -
+        </Button>
+        <Input
+          value={price.toFixed(8)}
+          onChange={(e) => handlePriceChange(e.target.value)}
+          placeholder="0.0"
+          pl="36px"
+          pr="36px"
+          borderRadius="lg"
+          h="40px"
+          textAlign="center"
+        />
+        <Button
+          size="sm"
+          position="absolute"
+          right={0}
+          top="0"
+          zIndex={2}
+          h="40px"
+          onClick={() => {
+            onTickChange(tick + tickSpacing);
+          }}
+          borderLeftRadius={0}
+          variant="outline"
+        >
+          +
+        </Button>
+      </Flex>
+      <Flex justify="space-between" mt={1}>
+        <Text fontSize="xs" color="gray.500">
+          Tick: {tick}
+        </Text>
+        {currentPoolPrice && (
+          <Box
+            px={1.5}
+            py={0.5}
+            fontSize="xs"
+            fontWeight="medium"
+            borderRadius="sm"
+            bg={getPercentBg()}
+            color={getPercentColor()}
+          >
+            {getFormattedPricePercentage(price, currentPoolPrice)}
+          </Box>
+        )}
+      </Flex>
+    </Box>
+  );
+};
+
 interface TargetSectionProps {
   selectedPosition: Position | null;
   sourceToken?: Address;
@@ -65,14 +228,18 @@ const TargetSection = ({
   const selectedBg = "gray.100";
 
   // Use orderTokensAndAmounts to ensure tokens are in the correct order
-  const { tokens, inverted } = useMemo(() => {
+  const { tokens, decimalsDiff } = useMemo(() => {
     if (!token0 || !token1)
-      return { tokens: [undefined, undefined], inverted: false };
+      return { tokens: [undefined, undefined], decimalsDiff: 0 };
 
     // Use 0n as dummy amounts since we're only interested in token ordering
     const { tokens, inverted } = orderTokensAndAmounts(token0, token1, 0n, 0n);
-    return { tokens, inverted };
-  }, [token0, token1]);
+    const decimalsDiff = inverted
+      ? 10 ** (token1Data?.decimals - token0Data?.decimals)
+      : 10 ** (token0Data?.decimals - token1Data?.decimals);
+
+    return { tokens, decimalsDiff };
+  }, [token0, token1, token0Data, token1Data]);
 
   // Pass the ordered tokens to the hook
   const { data, isLoading } = useV4UnichainPools(
@@ -98,107 +265,11 @@ const TargetSection = ({
     return TICK_SPACINGS[3000];
   }, [selectedPoolData]);
 
-  // Get current tick and price from the pool
+  // Get current tick from the pool
   const currentPoolTick = useMemo(() => {
     if (!selectedPoolData || !selectedPoolData.tick) return 0;
     return parseInt(selectedPoolData.tick);
   }, [selectedPoolData]);
-
-  // Calculate current price from the pool's current tick
-  const currentPoolPrice = useMemo(() => {
-    // Use the imported tickToPrice function
-    if (!selectedPoolData) return 1.0;
-    return tickToPrice(currentPoolTick);
-  }, [selectedPoolData, currentPoolTick]);
-
-  const decimalsDiff = inverted
-    ? 10 ** (token1Data?.decimals - token0Data?.decimals)
-    : 10 ** (token0Data?.decimals - token1Data?.decimals);
-
-  const normalizePrice = useCallback(
-    (price: number, back = false) => {
-      if (back) {
-        return price / decimalsDiff;
-      }
-      return price * decimalsDiff;
-    },
-    [decimalsDiff]
-  );
-
-  // Convert price to tick with rounding to the nearest tick spacing
-  const handlePriceToTick = useCallback(
-    (price: number, roundUp: boolean = false) => {
-      if (!price || price <= 0) return 0;
-      // Use the imported priceToTick function
-      return priceToTick(price, tickSpacing, roundUp);
-    },
-    [tickSpacing]
-  );
-
-  // Convert tick to price
-  const tickToDisplayPrice = useCallback(
-    (tick: number) => {
-      // Use the imported tickToPrice function
-      const price = tickToPrice(tick);
-      const normalizedPrice = normalizePrice(price);
-
-      // Invert price if showing prices in token1
-      return pricesInToken0 ? normalizedPrice : 1 / normalizedPrice;
-    },
-    [normalizePrice, pricesInToken0]
-  );
-
-  // Calculate percentage difference relative to current price, limited to +/-100%
-  const getFormattedPricePercentage = useCallback(
-    (price: number, currentPrice: number) => {
-      if (!currentPrice) return "";
-      // Use the common calculation functions
-      const percentDiff = calculatePricePercentage(price, currentPrice);
-      return percentDiff ? formatPricePercentage(percentDiff) : "";
-    },
-    []
-  );
-
-  // Compute min and max price from ticks
-  const minPrice = useMemo(
-    () => tickToDisplayPrice(minTick),
-    [minTick, tickToDisplayPrice]
-  );
-  const maxPrice = useMemo(
-    () => tickToDisplayPrice(maxTick),
-    [maxTick, tickToDisplayPrice]
-  );
-
-  // Handle psrice input changes by converting to ticks
-  const handleMinPriceChange = (value: string) => {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue > 0) {
-      let priceToConvert = numValue;
-
-      // Convert from display price to internal price if needed
-      if (!pricesInToken0) {
-        priceToConvert = 1 / priceToConvert;
-      }
-
-      const newTick = handlePriceToTick(normalizePrice(priceToConvert, true));
-      setMinTick(newTick);
-    }
-  };
-
-  const handleMaxPriceChange = (value: string) => {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue > 0) {
-      let priceToConvert = numValue;
-
-      // Convert from display price to internal price if needed
-      if (!pricesInToken0) {
-        priceToConvert = 1 / priceToConvert;
-      }
-
-      const newTick = handlePriceToTick(normalizePrice(priceToConvert, true));
-      setMaxTick(newTick);
-    }
-  };
 
   // Set price range based on percentage buttons - centered around current price
   const setPriceRange = (percentage: number) => {
@@ -206,15 +277,10 @@ const TargetSection = ({
 
     if (percentage === 0) {
       // MIN range - very tight range around current price
-      const minPriceValue = currentPoolPrice * 0.9999;
-      const maxPriceValue = currentPoolPrice * 1.0001;
-
-      // Calculate ticks centered around the current pool tick
-      const newMinTick = handlePriceToTick(minPriceValue);
-      const newMaxTick = handlePriceToTick(maxPriceValue, true);
-
-      setMinTick(newMinTick);
-      setMaxTick(newMaxTick);
+      const currentTick = parseInt(selectedPoolData.tick);
+      // Use small offsets from current tick
+      setMinTick(roundTick(currentTick - tickSpacing, tickSpacing, false));
+      setMaxTick(roundTick(currentTick + tickSpacing, tickSpacing, true));
     } else if (percentage === 100) {
       // FULL range
       setMinTick(
@@ -223,12 +289,13 @@ const TargetSection = ({
       setMaxTick(roundTick(TickMath.MAX_TICK - tickSpacing, tickSpacing, true));
     } else {
       // Percentage range centered around current price
-      const minPriceValue = currentPoolPrice * (1 - percentage / 100);
-      const maxPriceValue = currentPoolPrice * (1 + percentage / 100);
+      const currentPrice = tickToPrice(parseInt(selectedPoolData.tick));
+      const minPriceValue = currentPrice * (1 - percentage / 100);
+      const maxPriceValue = currentPrice * (1 + percentage / 100);
 
       // Calculate ticks
-      const newMinTick = handlePriceToTick(minPriceValue);
-      const newMaxTick = handlePriceToTick(maxPriceValue, true);
+      const newMinTick = priceToTick(minPriceValue, tickSpacing, false);
+      const newMaxTick = priceToTick(maxPriceValue, tickSpacing, true);
 
       setMinTick(newMinTick);
       setMaxTick(newMaxTick);
@@ -496,10 +563,13 @@ const TargetSection = ({
                           </Text>
                           <Text fontWeight="bold" fontSize="sm">
                             {pricesInToken0
-                              ? normalizePrice(currentPoolPrice).toFixed(8)
-                              : (1 / normalizePrice(currentPoolPrice)).toFixed(
-                                  8
-                                )}{" "}
+                              ? (
+                                  tickToPrice(currentPoolTick) * decimalsDiff
+                                ).toFixed(8)
+                              : (
+                                  1 /
+                                  (tickToPrice(currentPoolTick) * decimalsDiff)
+                                ).toFixed(8)}{" "}
                             {baseToken}/{quoteToken}
                           </Text>
                         </Flex>
@@ -510,179 +580,30 @@ const TargetSection = ({
                     )}
 
                     <Flex gap={4} mb={4}>
-                      <Box flex={1}>
-                        <Text mb={1} fontSize="sm" fontWeight="medium">
-                          Min Price
-                        </Text>
-                        <Flex position="relative">
-                          <Button
-                            size="sm"
-                            position="absolute"
-                            left={0}
-                            top="0"
-                            zIndex={2}
-                            h="40px"
-                            onClick={() => {
-                              setMinTick(minTick - tickSpacing);
-                            }}
-                            borderRightRadius={0}
-                            variant="outline"
-                          >
-                            -
-                          </Button>
-                          <Input
-                            value={minPrice.toFixed(8)}
-                            onChange={(e) =>
-                              handleMinPriceChange(e.target.value)
-                            }
-                            placeholder="0.0"
-                            pl="36px"
-                            pr="36px"
-                            borderRadius="lg"
-                            h="40px"
-                            textAlign="center"
-                          />
-                          <Button
-                            size="sm"
-                            position="absolute"
-                            right={0}
-                            top="0"
-                            zIndex={2}
-                            h="40px"
-                            onClick={() => {
-                              setMinTick(minTick + tickSpacing);
-                            }}
-                            borderLeftRadius={0}
-                            variant="outline"
-                          >
-                            +
-                          </Button>
-                        </Flex>
-                        <Flex justify="space-between" mt={1}>
-                          <Text fontSize="xs" color="gray.500">
-                            Tick: {minTick}
-                          </Text>
-                          {currentPoolPrice && (
-                            <Box
-                              px={1.5}
-                              py={0.5}
-                              fontSize="xs"
-                              fontWeight="medium"
-                              borderRadius="sm"
-                              bg={
-                                minPrice <
-                                (pricesInToken0
-                                  ? normalizePrice(currentPoolPrice)
-                                  : 1 / normalizePrice(currentPoolPrice))
-                                  ? "red.100"
-                                  : "green.100"
-                              }
-                              color={
-                                minPrice <
-                                (pricesInToken0
-                                  ? normalizePrice(currentPoolPrice)
-                                  : 1 / normalizePrice(currentPoolPrice))
-                                  ? "red.700"
-                                  : "green.700"
-                              }
-                            >
-                              {getFormattedPricePercentage(
-                                minPrice,
-                                pricesInToken0
-                                  ? normalizePrice(currentPoolPrice)
-                                  : 1 / normalizePrice(currentPoolPrice)
-                              )}
-                            </Box>
-                          )}
-                        </Flex>
-                      </Box>
+                      <PriceInput
+                        label="Min"
+                        tick={minTick}
+                        tickSpacing={tickSpacing}
+                        currentPoolTick={currentPoolTick}
+                        pricesInToken0={pricesInToken0}
+                        baseToken={baseToken}
+                        quoteToken={quoteToken}
+                        decimalsDiff={decimalsDiff}
+                        onTickChange={(newTick) => setMinTick(newTick)}
+                        showLowerPercent={true}
+                      />
 
-                      <Box flex={1}>
-                        <Text mb={1} fontSize="sm" fontWeight="medium">
-                          Max Price
-                        </Text>
-                        <Flex position="relative">
-                          <Button
-                            size="sm"
-                            position="absolute"
-                            left={0}
-                            top="0"
-                            zIndex={2}
-                            h="40px"
-                            onClick={() => {
-                              setMaxTick(maxTick - tickSpacing);
-                            }}
-                            borderRightRadius={0}
-                            variant="outline"
-                          >
-                            -
-                          </Button>
-                          <Input
-                            value={maxPrice.toFixed(8)}
-                            onChange={(e) =>
-                              handleMaxPriceChange(e.target.value)
-                            }
-                            placeholder="0.0"
-                            pl="36px"
-                            pr="36px"
-                            borderRadius="lg"
-                            h="40px"
-                            textAlign="center"
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            position="absolute"
-                            right={0}
-                            top="0"
-                            zIndex={2}
-                            h="40px"
-                            onClick={() => {
-                              setMaxTick(maxTick + tickSpacing);
-                            }}
-                            borderLeftRadius={0}
-                          >
-                            +
-                          </Button>
-                        </Flex>
-                        <Flex justify="space-between" mt={1}>
-                          <Text fontSize="xs" color="gray.500">
-                            Tick: {maxTick}
-                          </Text>
-                          {currentPoolPrice && (
-                            <Box
-                              px={1.5}
-                              py={0.5}
-                              fontSize="xs"
-                              fontWeight="medium"
-                              borderRadius="sm"
-                              bg={
-                                maxPrice >
-                                (pricesInToken0
-                                  ? normalizePrice(currentPoolPrice)
-                                  : 1 / normalizePrice(currentPoolPrice))
-                                  ? "green.100"
-                                  : "red.100"
-                              }
-                              color={
-                                maxPrice >
-                                (pricesInToken0
-                                  ? normalizePrice(currentPoolPrice)
-                                  : 1 / normalizePrice(currentPoolPrice))
-                                  ? "green.700"
-                                  : "red.700"
-                              }
-                            >
-                              {getFormattedPricePercentage(
-                                maxPrice,
-                                pricesInToken0
-                                  ? normalizePrice(currentPoolPrice)
-                                  : 1 / normalizePrice(currentPoolPrice)
-                              )}
-                            </Box>
-                          )}
-                        </Flex>
-                      </Box>
+                      <PriceInput
+                        label="Max"
+                        tick={maxTick}
+                        tickSpacing={tickSpacing}
+                        currentPoolTick={currentPoolTick}
+                        pricesInToken0={pricesInToken0}
+                        baseToken={baseToken}
+                        quoteToken={quoteToken}
+                        decimalsDiff={decimalsDiff}
+                        onTickChange={(newTick) => setMaxTick(newTick)}
+                      />
                     </Flex>
 
                     <Box
