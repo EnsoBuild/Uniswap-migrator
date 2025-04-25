@@ -11,8 +11,8 @@ export const TICK_SPACINGS: { [key: number]: number } = {
   10000: 200,
 };
 
-const NativeToken = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-const NullAddress = "0x0000000000000000000000000000000000000000";
+export const NativeToken = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+export const NullAddress = "0x0000000000000000000000000000000000000000";
 
 const isNativeToken = (token: string) => token === NativeToken;
 // depending on order; returns zero address for native

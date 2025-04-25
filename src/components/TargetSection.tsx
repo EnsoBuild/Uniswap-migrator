@@ -147,7 +147,7 @@ const TargetSection = ({
       // Set initial price range to full range
       setPriceRange(100);
     }
-  }, [selectedPoolData]);
+  }, [selectedPoolData?.id]);
 
   useEffect(() => {
     setSelectedPool("");
