@@ -37,6 +37,12 @@ export const setApiKey = (apiKey: string) => {
   });
 };
 
+type AmountArg =
+  | {
+      useOutputOfCallAt: number;
+    }
+  | string;
+
 export const useEnsoApprove = (tokenAddress: Address, amount: string) => {
   const { address } = useAccount();
   const chainId = usePriorityChainId();
@@ -107,23 +113,20 @@ const V4PositionManagers = {
   130: "0x4529a01c7a0410167c5740c487a8de60232617bf",
 };
 
-const useBridgeBundle = (
-  {
-    tokenIn,
-    tokenId,
-    tokenOut,
-    receiver,
-    chainId,
-    destinationChainId,
-    ticks,
-    token0,
-    token1,
-    poolFee,
-    liquidity,
-    amountIn,
-  }: BridgeBundleParams,
-  enabled = false
-) => {
+const useBridgeBundle = ({
+  tokenIn,
+  tokenId,
+  tokenOut,
+  receiver,
+  chainId,
+  destinationChainId,
+  ticks,
+  token0,
+  token1,
+  poolFee,
+  liquidity,
+  amountIn,
+}: BridgeBundleParams) => {
   const isSameChain = chainId === destinationChainId;
   let bundleActions: BundleAction[] = [];
 
@@ -143,7 +146,96 @@ const useBridgeBundle = (
 
   // If source and destination chains are different, use bridge action
   if (!isSameChain) {
-    bundleActions = [
+    let ensoFeeAmount: AmountArg = amountIn;
+    let bridgeAmount: AmountArg = {
+      useOutputOfCallAt: 0,
+    };
+
+    if (tokenIn !== sourceToken) {
+      if (tokenId) {
+        ensoFeeAmount = {
+          useOutputOfCallAt: 1,
+        };
+        bridgeAmount = {
+          useOutputOfCallAt: 3,
+        };
+        bundleActions.push({
+          protocol: "uniswap-v3",
+          // @ts-ignore
+          action: "redeemclmm",
+          args: {
+            tokenIn,
+            // @ts-ignore
+            tokenId,
+            liquidity,
+            tokenOut: tokenOut,
+          },
+        });
+        bundleActions.push({
+          protocol: "enso",
+          // @ts-ignore
+          action: "merge",
+          args: {
+            tokenIn: tokenOut,
+            // @ts-ignore
+            tokenOut: sourceToken,
+            amountIn: [
+              {
+                useOutputOfCallAt: 0,
+                index: 0,
+              },
+              {
+                useOutputOfCallAt: 0,
+                index: 1,
+              },
+            ],
+          },
+        });
+        bundleActions.push({
+          protocol: "enso",
+          // @ts-ignore
+          action: "slippage",
+          args: {
+            // @ts-ignore
+            amountOut: { useOutputOfCallAt: 1 },
+            bps: 100,
+          },
+        });
+      } else {
+        ensoFeeAmount = {
+          useOutputOfCallAt: 0,
+        };
+        bridgeAmount = {
+          useOutputOfCallAt: 1,
+        };
+        // @ts-ignore
+        bundleActions.push(
+          // @ts-ignore
+          {
+            protocol: "enso",
+            action: BundleActionType.Route,
+            args: {
+              tokenIn,
+              amountIn,
+              tokenOut: sourceToken,
+            },
+          } as BundleAction
+        );
+      }
+    }
+
+    bundleActions.push(
+      {
+        protocol: "enso",
+        // @ts-ignore
+        action: "ensofee",
+        args: {
+          // @ts-ignore
+          token: sourceToken,
+          amount: ensoFeeAmount,
+          bps: 25,
+        },
+      },
       {
         protocol: "stargate",
         action: BundleActionType.Bridge,
@@ -153,7 +245,7 @@ const useBridgeBundle = (
           destinationChainId,
           // @ts-ignore
           tokenIn: sourceToken,
-          amountIn,
+          amountIn: bridgeAmount,
           receiver,
           callback: [
             {
@@ -194,149 +286,89 @@ const useBridgeBundle = (
                 ],
               },
             },
+            {
+              protocol: "enso",
+              action: "slippage",
+              args: {
+                amountOut: { useOutputOfCallAt: 2 },
+                bps: 100,
+              },
+            },
           ],
+        },
+      }
+    );
+  } else {
+    const positionManager = V4PositionManagers[destinationChainId];
+
+    bundleActions.push({
+      protocol: "enso",
+      // @ts-ignore
+      action: "ensofee",
+      args: {
+        // @ts-ignore
+        token: tokenIn,
+        amount: amountIn,
+        bps: 25,
+      },
+    });
+    bundleActions.push({
+      protocol: "enso",
+      // @ts-ignore
+      action: "split",
+      // @ts-ignore
+      args: {
+        tokenIn,
+        tokenOut: [token0, token1],
+        amountIn: {
+          useOutputOfCallAt: 0,
         },
       },
-    ];
-
-    if (tokenIn !== sourceToken) {
-      if (tokenId) {
+    });
+    bundleActions.push({
+      protocol: "uniswap-v4",
+      // @ts-ignore
+      action: "depositclmm",
+      args: {
+        tokenOut: positionManager,
         // @ts-ignore
-        bundleActions[0].args.amountIn = {
-          useOutputOfCallAt: 1,
-        };
-        bundleActions.unshift({
-          protocol: "enso",
-          // @ts-ignore
-          action: "merge",
-          args: {
-            tokenIn: tokenOut,
-            // @ts-ignore
-            tokenOut: sourceToken,
-            amountIn: [
-              {
-                useOutputOfCallAt: 0,
-                index: 0,
-              },
-              {
-                useOutputOfCallAt: 0,
-                index: 1,
-              },
-            ],
-          },
-        });
-
-        bundleActions.unshift({
-          protocol: "uniswap-v3",
-          // @ts-ignore
-          action: "redeemclmm",
-          args: {
-            tokenIn,
-            // @ts-ignore
-            tokenId,
-            liquidity,
-            tokenOut: tokenOut,
-          },
-        });
-      } else {
-        // @ts-ignore
-        bundleActions[0].args.amountIn = {
-          useOutputOfCallAt: 0,
-        };
-        bundleActions.unshift(
-          // @ts-ignore
+        ticks,
+        tokenIn: [token0, token1],
+        poolFee,
+        amountIn: [
           {
-            protocol: "enso",
-            action: BundleActionType.Route,
-            args: {
-              tokenIn,
-              amountIn,
-              tokenOut: sourceToken,
-            },
-          } as BundleAction
-        );
-      }
-    }
-  } else {
-    // For same chain, skip the bridge and directly use the required actions
-    // First, handle position redemption if needed
-    if (tokenId) {
-      bundleActions.push({
-        protocol: "uniswap-v3",
-        // @ts-ignore
-        action: "redeemclmm",
-        args: {
-          tokenIn,
-          // @ts-ignore
-          tokenId,
-          liquidity,
-          tokenOut: tokenOut,
-        },
-      });
-
-      // If tokenOut is provided, split and deposit
-      if (tokenOut && tokenOut.length === 2) {
-        bundleActions.push({
-          protocol: "uniswap-v4",
-          // @ts-ignore
-          action: "depositclmm",
-          args: {
-            tokenOut: V4PositionManagers[destinationChainId],
-            // @ts-ignore
-            ticks,
-            tokenIn: [token0, token1],
-            poolFee,
-            amountIn: [
-              {
-                useOutputOfCallAt: 0,
-                index: 0,
-              },
-              {
-                useOutputOfCallAt: 0,
-                index: 1,
-              },
-            ],
+            useOutputOfCallAt: 1,
+            index: 0,
           },
-        });
-      }
-    } else if (amountIn) {
-      // If we have amountIn but no tokenId, directly route to deposit
-      bundleActions.push({
-        protocol: "enso",
+          {
+            useOutputOfCallAt: 1,
+            index: 1,
+          },
+        ],
+      },
+    });
+    bundleActions.push({
+      protocol: "enso",
+      // @ts-ignore
+      action: "slippage",
+      args: {
         // @ts-ignore
-        action: "split",
-        // @ts-ignore
-        args: {
-          tokenIn,
-          tokenOut: [token0, token1],
-          amountIn,
-        },
-      });
-
-      bundleActions.push({
-        protocol: "uniswap-v4",
-        // @ts-ignore
-        action: "depositclmm",
-        args: {
-          tokenOut: V4PositionManagers[destinationChainId],
-          // @ts-ignore
-          ticks,
-          tokenIn: [token0, token1],
-          poolFee,
-          amountIn: [
-            {
-              useOutputOfCallAt: 0,
-              index: 0,
-            },
-            {
-              useOutputOfCallAt: 0,
-              index: 1,
-            },
-          ],
-        },
-      });
-    }
+        amountOut: { useOutputOfCallAt: 2 },
+        bps: 100,
+      },
+    });
   }
+
+  const enabled = Boolean(
+    ((tokenOut && liquidity && tokenId) || amountIn) &&
+      destinationChainId &&
+      tokenIn &&
+      receiver &&
+      ticks[0] &&
+      poolFee &&
+      token0 &&
+      token1
+  );
 
   const { data, isLoading } = useBundleData(
     { chainId, fromAddress: receiver, spender: receiver },
@@ -364,6 +396,7 @@ export const useBundleData = (
   enabled = true
 ) => {
   const chainId = usePriorityChainId();
+  const firstActionArgs = bundleActions[0]?.args;
 
   return useQuery({
     queryKey: ["enso-bundle", chainId, bundleParams, bundleActions],
@@ -373,29 +406,16 @@ export const useBundleData = (
       bundleActions?.length > 0 &&
       isAddress(bundleParams.fromAddress) &&
       // @ts-ignore
-      (+(bundleActions[0]?.args?.amountIn as string) > 0 ||
+      (+(firstActionArgs?.amountIn || (firstActionArgs?.amount as string)) >
+        0 ||
         // @ts-ignore
-        !!bundleActions[0]?.args?.tokenId),
+        !!firstActionArgs?.tokenId),
   });
 };
 
 export const useEnsoData = (params: BridgeBundleParams) => {
-  const enabled = Boolean(
-    ((params.tokenOut && params.liquidity && params.tokenId) ||
-      params.amountIn) &&
-      params.destinationChainId &&
-      params.tokenIn &&
-      params.receiver &&
-      params.ticks[0] &&
-      params.poolFee &&
-      params.token0 &&
-      params.token1
-  );
-
-  const { data: bundleData, isLoading: bundleLoading } = useBridgeBundle(
-    params,
-    enabled
-  );
+  const { data: bundleData, isLoading: bundleLoading } =
+    useBridgeBundle(params);
 
   const data = bundleData;
   const isLoading = bundleLoading;
