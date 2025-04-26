@@ -20,6 +20,7 @@ import {
 import { ETH_ADDRESS } from "@/constants";
 import { formatNumber, normalizeValue } from "@/util/index";
 import { toaster } from "@/components/ui/toaster";
+import { posManagerAbi } from "@/util/abis";
 
 enum TxState {
   Success,
@@ -119,6 +120,48 @@ export const useApprove = (token: Address, target: Address, amount: string) => {
       abi: erc20Abi,
       functionName: "approve",
       args: [target, amount],
+    },
+  };
+};
+
+export const useNftAllowance = (
+  tokenAddress: Address,
+  tokenId: string,
+) => {
+  const chainId = usePriorityChainId();
+  const index = useChangingIndex();
+  const queryClient = useQueryClient();
+  const { data, queryKey } = useReadContract({
+    chainId,
+    address: tokenAddress,
+    abi: posManagerAbi,
+    functionName: "getApproved",
+    args: [tokenId ? BigInt(tokenId) : undefined],
+  });
+
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey });
+  }, [index, queryClient, queryKey]);
+
+  // Return the approved address, which can be compared with the spender
+  return data?.toString() ?? "0x0";
+};
+
+export const useNftApprove = (
+  tokenAddress: Address,
+  target: Address,
+  tokenId: string
+) => {
+  const chainId = usePriorityChainId();
+
+  return {
+    title: `Approve Position #${tokenId} for migration`,
+    args: {
+      chainId,
+      address: tokenAddress,
+      abi: posManagerAbi,
+      functionName: "approve",
+      args: [target, tokenId ? BigInt(tokenId) : undefined],
     },
   };
 };
@@ -306,6 +349,25 @@ export const useApproveIfNecessary = (
   if (tokenIn === ETH_ADDRESS) return undefined;
 
   return +allowance < +amount ? writeApprove : undefined;
+};
+
+export const useNftApproveIfNecessary = (
+  tokenAddress: Address,
+  target: Address,
+  tokenId: string
+) => {
+  const allowance = useNftAllowance(tokenAddress, tokenId);
+  const approveData = useNftApprove(tokenAddress, target, tokenId);
+  const writeApprove = useExtendedContractWrite(
+    approveData.title,
+    approveData.args as unknown as UseSimulateContractParameters
+  );
+
+  if (!tokenId) return undefined;
+
+  return allowance.toLowerCase() !== target.toLowerCase()
+    ? writeApprove
+    : undefined;
 };
 
 export const useSendEnsoTransaction = (ensoTxData: any) => {

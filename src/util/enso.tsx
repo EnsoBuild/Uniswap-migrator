@@ -74,7 +74,7 @@ const useStargateTokens = (chainId: SupportedChainId, tokenSymbol: string) => {
   const foundOccurrency = stargatePools?.find(
     (pool) =>
       pool.chainKey === STARGATE_CHAIN_NAMES[chainId] &&
-      pool.token.symbol.includes(tokenSymbol),
+      pool.token.symbol.includes(tokenSymbol)
   );
 
   let underyingToken = foundOccurrency?.token.address.toLowerCase();
@@ -122,7 +122,7 @@ const useBridgeBundle = (
     liquidity,
     amountIn,
   }: BridgeBundleParams,
-  enabled = false,
+  enabled = false
 ) => {
   const isSameChain = chainId === destinationChainId;
   let bundleActions: BundleAction[] = [];
@@ -134,11 +134,11 @@ const useBridgeBundle = (
       : "USDC";
   const [sourcePool, sourceToken] = useStargateTokens(
     chainId!,
-    tokenNameToBridge,
+    tokenNameToBridge
   );
   const [destinationPool, destinationToken] = useStargateTokens(
     destinationChainId!,
-    tokenNameToBridge,
+    tokenNameToBridge
   );
 
   // If source and destination chains are different, use bridge action
@@ -253,7 +253,7 @@ const useBridgeBundle = (
               amountIn,
               tokenOut: sourceToken,
             },
-          } as BundleAction,
+          } as BundleAction
         );
       }
     }
@@ -341,7 +341,7 @@ const useBridgeBundle = (
   const { data, isLoading } = useBundleData(
     { chainId, fromAddress: receiver, spender: receiver },
     bundleActions,
-    enabled,
+    enabled
   );
 
   const bundleData = {
@@ -361,7 +361,7 @@ const useBridgeBundle = (
 export const useBundleData = (
   bundleParams: BundleParams,
   bundleActions: BundleAction[],
-  enabled = true,
+  enabled = true
 ) => {
   const chainId = usePriorityChainId();
 
@@ -389,12 +389,12 @@ export const useEnsoData = (params: BridgeBundleParams) => {
       params.ticks[0] &&
       params.poolFee &&
       params.token0 &&
-      params.token1,
+      params.token1
   );
 
   const { data: bundleData, isLoading: bundleLoading } = useBridgeBundle(
     params,
-    enabled,
+    enabled
   );
 
   const data = bundleData;
@@ -497,7 +497,7 @@ export const useEnsoToken = ({
 
 export const useEnsoPrice = (
   address: Address,
-  priorityChainId?: SupportedChainId,
+  priorityChainId?: SupportedChainId
 ) => {
   const chainId = usePriorityChainId(priorityChainId);
 
@@ -519,6 +519,6 @@ export const useChainProtocols = (chainId: SupportedChainId) => {
   const { data } = useEnsoProtocols();
 
   return data?.filter((protocol: { chains: { id: number }[] }) =>
-    protocol.chains.some((chain) => chain.id === chainId),
+    protocol.chains.some((chain) => chain.id === chainId)
   );
 };

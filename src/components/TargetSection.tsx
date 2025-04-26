@@ -29,8 +29,7 @@ import { BridgeBundleParams, useEnsoData, useEnsoToken } from "@/util/enso";
 import { useAccount, useReadContract } from "wagmi";
 import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
-import { posManagerAbi } from "@/util/abis";
-import { useExtendedContractWrite, useApproveIfNecessary } from "@/util/wallet";
+import { useApproveIfNecessary, useNftApproveIfNecessary } from "@/util/wallet";
 import TickedPriceInput from "./TickedPriceInput";
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
@@ -164,6 +163,13 @@ const TargetSection = ({
     sourceAmount || "0"
   );
 
+  // Add NFT position approval hook
+  const nftApproval = useNftApproveIfNecessary(
+    tokenIn,
+    ROUTER_ADDRESS,
+    selectedPosition?.id?.toString()
+  );
+
   const ensoArgs: BridgeBundleParams = {
     //input position
     chainId,
@@ -190,13 +196,6 @@ const TargetSection = ({
   const baseToken = pricesInToken0 ? token0Data?.symbol : token1Data?.symbol;
   const quoteToken = pricesInToken0 ? token1Data?.symbol : token0Data?.symbol;
 
-  const approvalData = useReadContract({
-    address: tokenIn,
-    abi: posManagerAbi,
-    functionName: "getApproved",
-    args: [selectedPosition?.id ? BigInt(selectedPosition.id) : undefined],
-  });
-
   // Check if position is approved for migration
   const isApproved = useMemo(() => {
     if (sourceToken) {
@@ -205,16 +204,8 @@ const TargetSection = ({
     }
 
     // In position mode - check NFT approval
-    if (!approvalData.data || !address) return false;
-    return approvalData.data.toLowerCase() === ROUTER_ADDRESS.toLowerCase();
-  }, [approvalData.data, address, sourceToken, tokenApproval]);
-
-  const approveNft = useExtendedContractWrite("Approve Position", {
-    address: tokenIn,
-    abi: posManagerAbi,
-    functionName: "approve",
-    args: [ROUTER_ADDRESS, selectedPosition?.id],
-  });
+    return !nftApproval;
+  }, [sourceToken, tokenApproval, nftApproval]);
 
   return (
     <Box minW="550px" maxW="700px" mx="auto" h="100%" mt={6}>
@@ -532,15 +523,15 @@ const TargetSection = ({
             flexDirection="column"
             alignItems="center"
           >
-            {selectedPosition && !isApproved && (
+            {selectedPosition && nftApproval && (
               <Button
                 variant="subtle"
                 w="full"
                 colorPalette="green"
                 size="lg"
-                onClick={approveNft.write}
+                onClick={nftApproval.write}
                 disabled={!selectedPosition}
-                loading={approveNft.isLoading}
+                loading={nftApproval.isLoading}
                 borderRadius="xl"
                 h="56px"
                 fontWeight="semibold"
