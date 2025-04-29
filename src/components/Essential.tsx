@@ -38,7 +38,7 @@ const getMintAmounts = (
   price: bigint,
   tick: number,
   liquidity: bigint,
-  ticks: [number, number],
+  ticks: [number, number]
 ) => {
   const tokenA = new Token(1, token0, 18, "A", "A");
   const tokenB = new Token(1, token1, 18, "B", "B");
@@ -49,7 +49,7 @@ const getMintAmounts = (
     poolFee,
     price.toString(),
     liquidity.toString(),
-    tick,
+    tick
   );
 
   const position = new V3Position({
@@ -220,7 +220,7 @@ const PositionItem = ({
     BigInt(position.poolSqrtPrice || "1"),
     position.poolTick || 0,
     position.liquidity,
-    [position.tickLower, position.tickUpper],
+    [position.tickLower, position.tickUpper]
   );
 
   // Format token amounts for display
@@ -319,7 +319,7 @@ const Essential = () => {
   const { address } = useAccount();
   const chainId = useChainId();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(
-    null,
+    null
   );
   const [sourceMode, setSourceMode] = useState<"token" | "position">("token");
   const [sourceToken, setSourceToken] = useState<Address>(NativeToken);
@@ -331,7 +331,7 @@ const Essential = () => {
   // Fetch positions using the subgraph
   const { data: positionsData, isLoading: isLoadingPositions } = useV3Positions(
     address,
-    chainId,
+    chainId
   );
 
   // Convert subgraph data to Position interface
@@ -382,8 +382,8 @@ const Essential = () => {
             }
           >
             <Tabs.List mb={4}>
-              <Tabs.Trigger value="token">Token</Tabs.Trigger>
-              <Tabs.Trigger value="position">Position</Tabs.Trigger>
+              <Tabs.Trigger value="token">Zap-in</Tabs.Trigger>
+              <Tabs.Trigger value="position">Migrate</Tabs.Trigger>
             </Tabs.List>
             <Tabs.Content
               value="position"

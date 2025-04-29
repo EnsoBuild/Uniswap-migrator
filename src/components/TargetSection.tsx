@@ -26,13 +26,17 @@ import { Address } from "viem";
 import { Radio, RadioGroup } from "@/components/ui/radio";
 import { formatCompactUsd } from "@/util";
 import { BridgeBundleParams, useEnsoData, useEnsoToken } from "@/util/enso";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount } from "wagmi";
 import { usePriorityChainId } from "@/util/common";
 import { getPosManagerAddress } from "@/util/uniswap";
 import { useApproveIfNecessary, useNftApproveIfNecessary } from "@/util/wallet";
 import TickedPriceInput from "./TickedPriceInput";
+import { DEFAULT_FEE_BPS } from "@/constants";
+import Slippage from "./Slippage";
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
+// Default slippage in basis points (0.5%)
+const DEFAULT_SLIPPAGE_BPS = 50;
 
 interface TargetSectionProps {
   selectedPosition: Position | null;
@@ -51,6 +55,7 @@ const TargetSection = ({
   const [minTick, setMinTick] = useState<number>(0);
   const [maxTick, setMaxTick] = useState<number>(0);
   const [pricesInToken0, setPricesInToken0] = useState<boolean>(true);
+  const [slippage, setSlippage] = useState<number>(DEFAULT_SLIPPAGE_BPS);
 
   const [token0Data] = useEnsoToken({ address: token0, priorityChainId: 130 });
   const [token1Data] = useEnsoToken({ address: token1, priorityChainId: 130 });
@@ -187,6 +192,8 @@ const TargetSection = ({
     poolFee: selectedPoolData?.feeTier.toString(),
     receiver: address,
     destinationChainId: 130,
+    slippageBps: slippage,
+    feeBps: DEFAULT_FEE_BPS,
   };
 
   // Only call useEnsoData if we have valid tokens and a non-zero amount
@@ -513,6 +520,10 @@ const TargetSection = ({
               </Box>
             )
           )}
+
+          <Flex justifyContent="center" mt={2}>
+            <Slippage slippage={slippage} setSlippage={setSlippage} />
+          </Flex>
 
           {/* Add Approval and Migrate buttons */}
           <Box

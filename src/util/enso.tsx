@@ -106,6 +106,8 @@ export interface BridgeBundleParams {
   redeemTokens?: [Address, Address];
   liquidity?: string;
   amountIn?: string;
+  slippageBps?: number;
+  feeBps?: number;
 }
 
 const V4PositionManagers = {
@@ -126,6 +128,8 @@ const useBridgeBundle = ({
   poolFee,
   liquidity,
   amountIn,
+  slippageBps = 100,
+  feeBps = 25,
 }: BridgeBundleParams) => {
   const isSameChain = chainId === destinationChainId;
   let bundleActions: BundleAction[] = [];
@@ -139,7 +143,7 @@ const useBridgeBundle = ({
     chainId!,
     tokenNameToBridge
   );
-  const [destinationPool, destinationToken] = useStargateTokens(
+  const [, destinationToken] = useStargateTokens(
     destinationChainId!,
     tokenNameToBridge
   );
@@ -198,7 +202,7 @@ const useBridgeBundle = ({
           args: {
             // @ts-ignore
             amountOut: { useOutputOfCallAt: 1 },
-            bps: 100,
+            bps: slippageBps,
           },
         });
       } else {
@@ -233,7 +237,7 @@ const useBridgeBundle = ({
           // @ts-ignore
           token: sourceToken,
           amount: ensoFeeAmount,
-          bps: 25,
+          bps: feeBps,
         },
       },
       {
@@ -291,7 +295,7 @@ const useBridgeBundle = ({
               action: "slippage",
               args: {
                 amountOut: { useOutputOfCallAt: 2 },
-                bps: 100,
+                bps: slippageBps,
               },
             },
           ],
@@ -309,7 +313,7 @@ const useBridgeBundle = ({
         // @ts-ignore
         token: tokenIn,
         amount: amountIn,
-        bps: 25,
+        bps: feeBps,
       },
     });
     bundleActions.push({
@@ -354,7 +358,7 @@ const useBridgeBundle = ({
       args: {
         // @ts-ignore
         amountOut: { useOutputOfCallAt: 2 },
-        bps: 100,
+        bps: slippageBps,
       },
     });
   }

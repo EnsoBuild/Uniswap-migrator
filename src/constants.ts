@@ -259,3 +259,5 @@ export const CHAINS_ICON_URL: Record<SupportedChainId, string> = {
   [SupportedChainId.UNICHAIN]:
     "https://assets.coingecko.com/asset_platforms/images/44/large/unichain.png",
 };
+
+export const DEFAULT_FEE_BPS = 10;
