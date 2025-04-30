@@ -1,6 +1,6 @@
 {
   "name": "@ensofinance/uniswap-migrator",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "private": false,
   "type": "module",
   "main": "./dist/uniswap-migrator.umd.js",
@@ -30,7 +30,6 @@
     "@chakra-ui/react": "^3.8.1",
     "@emotion/react": "^11.14.0",
     "@ensofinance/sdk": "^1.0.17",
-    "@rainbow-me/rainbowkit": "^2.2.4",
     "@tanstack/react-query": "^5.67.1",
     "@uidotdev/usehooks": "^2.4.1",
     "@uniswap/sdk-core": "^7.7.2",

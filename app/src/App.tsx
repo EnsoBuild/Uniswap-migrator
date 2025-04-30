@@ -27,8 +27,13 @@ function App() {
           </div>
         </div>
 
-        {/* Uncomment after building and installing the widget */}
-        <WidgetWrapper apiKey={ensoApiKey} />
+        <div
+          style={{
+            paddingTop: "50px",
+          }}
+        >
+          <WidgetWrapper apiKey={ensoApiKey} />
+        </div>
       </div>
     </Providers>
   );
