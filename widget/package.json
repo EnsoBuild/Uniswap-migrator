@@ -1,10 +1,11 @@
 {
   "name": "@ensofinance/uniswap-migrator",
-  "version": "0.0.12",
+  "version": "0.0.15",
   "private": false,
   "type": "module",
   "main": "./dist/uniswap-migrator.umd.js",
   "module": "./dist/uniswap-migrator.es.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

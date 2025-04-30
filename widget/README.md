@@ -31,6 +31,14 @@ Here's a basic example of how to use the widget in your React application:
 ```jsx
 import { WidgetWrapper } from "@ensofinance/uniswap-migrator";
 
+/*
+ * for next Next.js projects we need to use dynamic import instead
+import dynamic from "next/dynamic";
+const WidgetWrapper= dynamic(() => import("@ensofinance/uniswap-migrator").then(mod => mod.WidgetWrapper), {
+    ssr: false,
+}); 
+*/
+
 function App() {
   return (
     <div>
