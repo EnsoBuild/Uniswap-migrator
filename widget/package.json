@@ -1,6 +1,6 @@
 {
   "name": "@ensofinance/uniswap-migrator",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
@@ -8,6 +8,11 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "url": "https://github.com/EnsoFinance/uniswap-migrator",
+    "type": "git",
+    "directory": "widget"
+  },
   "scripts": {
     "clean": "find src -name \"*.js\" -type f -delete && find src -name \"*.js.map\" -type f -delete && find src -name \"*.d.ts\" -type f -delete && rm -rf dist",
     "build": "npm run clean && npx tsc",
