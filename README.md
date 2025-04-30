@@ -1,8 +1,6 @@
-# React + TypeScript + Vite + Chakra-UI + RainbowKit + Enso SDK
-
 <div align="center">
 
-[![NPM Version](https://img.shields.io/npm/v/@ensofinance/uniswap-migrator)](https://www.npmjs.com/package/@ensofinance/uniswap-migrator)
+[![NPM Version](https://img.shields.io/npm/v/%40ensofinance%2Funiswap-migrator)](https://www.npmjs.com/package/%40ensofinance%2Funiswap-migrator)
 [![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/EnsoBuild)](https://twitter.com/EnsoBuild)
 
 </div>

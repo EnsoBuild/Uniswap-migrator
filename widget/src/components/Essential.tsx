@@ -348,7 +348,7 @@ const Essential = () => {
 
   if (!address) {
     return (
-      <Center h="70vh">
+      <Center>
         <Box
           maxW="md"
           borderWidth="1px"
