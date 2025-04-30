@@ -1,3 +1,53 @@
 # React + TypeScript + Vite + Chakra-UI + RainbowKit + Enso SDK
 
-This template provides a minimal setup to get React work wallets and Enso SDK
+<div align="center">
+
+[![NPM Version](https://img.shields.io/npm/v/@ensofinance/uniswap-migrator)](https://www.npmjs.com/package/@ensofinance/uniswap-migrator)
+[![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/EnsoBuild)](https://twitter.com/EnsoBuild)
+
+</div>
+
+# Uniswap Migrator
+
+The Uniswap Migrator is a tool that helps users easily migrate their existing Uniswap v3 position or dposit any token into Uniswap v4 pool
+
+This project is set up using pnpm workspaces with the following structure:
+
+## Workspace Structure
+
+- `app/`: Main application that uses the widget
+- `widget/`: Reusable Uniswap migrator widget
+
+## Installation
+
+To install the widget in your project using npm:
+
+```bash
+npm install @ensofinance/uniswap-migrator
+```
+
+## Usage
+
+Get your key at [Enso Dashboard](https://shortcuts.enso.finance/developers)
+
+Here's a basic example of how to use the widget in your React application:
+
+```jsx
+import { WidgetWrapper } from "@ensofinance/uniswap-migrator";
+
+function App() {
+  return (
+    <div>
+      <h1>My DeFi App</h1>
+      <WidgetWrapper apiKey={ensoKey} />
+    </div>
+  );
+}
+
+export default App;
+```
+
+## Development
+
+- To work on the widget: `pnpm --filter widget build --watch`
+- To run the app: `pnpm dev`

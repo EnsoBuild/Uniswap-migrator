@@ -1,12 +1,18 @@
 {
-  "name": "uniswap-migrator",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@ensofinance/uniswap-migrator",
+  "version": "0.0.3",
+  "private": false,
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "dev": "pnpm --filter app dev",
-    "build": "pnpm --filter '*' build",
-    "lint": "pnpm --filter '*' lint"
+    "clean": "find src -name \"*.js\" -type f -delete && find src -name \"*.js.map\" -type f -delete && find src -name \"*.d.ts\" -type f -delete && rm -rf dist",
+    "build": "npm run clean && npx tsc",
+    "lint": "eslint .",
+    "publish": "npm run build && npm publish"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.8.1",
@@ -19,27 +25,19 @@
     "@uniswap/v3-periphery": "^1.4.4",
     "@uniswap/v3-sdk": "^3.25.2",
     "lucide-react": "^0.503.0",
-    "next-themes": "^0.4.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-icons": "^5.5.0",
     "react-window": "^1.8.11",
     "urql": "^4.2.2",
     "viem": "2.x",
     "wagmi": "^2.14.12",
     "zustand": "^5.0.3"
   },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
   "devDependencies": {
-    "@eslint/js": "^9.21.0",
     "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "@vitejs/plugin-react": "^4.3.4",
-    "eslint": "^9.21.0",
-    "eslint-plugin-react-hooks": "^5.1.0",
-    "eslint-plugin-react-refresh": "^0.4.19",
-    "globals": "^15.15.0",
-    "typescript": "~5.7.2",
-    "typescript-eslint": "^8.24.1",
-    "vite": "^6.2.0"
+    "typescript": "~5.7.2"
   }
 }
