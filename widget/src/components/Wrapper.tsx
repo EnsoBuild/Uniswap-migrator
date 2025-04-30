@@ -7,6 +7,7 @@ import {
 } from "@chakra-ui/react";
 import { Essential } from "..";
 import { setApiKey } from "../util/enso";
+import { Toaster } from "./ui/toaster";
 
 /**
  * ChakraUI wrapper component
@@ -45,6 +46,7 @@ export const WidgetWrapper = ({ apiKey }: { apiKey: string }) => {
           <Essential />
         </div>
       </Center>
+      <Toaster />
     </ChakraProvider>
   );
 };

@@ -1,6 +1,6 @@
 {
   "name": "@ensofinance/uniswap-migrator",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
@@ -30,6 +30,7 @@
     "@uniswap/v3-periphery": "^1.4.4",
     "@uniswap/v3-sdk": "^3.25.2",
     "lucide-react": "^0.503.0",
+    "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-window": "^1.8.11",
     "urql": "^4.2.2",

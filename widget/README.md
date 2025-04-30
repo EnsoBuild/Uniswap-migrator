@@ -7,9 +7,7 @@
 
 # Uniswap Migrator
 
-The Uniswap Migrator is a tool that helps users easily migrate their existing Uniswap v3 position or dposit any token into Uniswap v4 pool
-
-This project is set up using pnpm workspaces with the following structure:
+The Uniswap Migrator is a tool that helps users easily migrate their existing Uniswap v3 position or deposit any token into Uniswap v4 pool
 
 ## Workspace Structure
 
