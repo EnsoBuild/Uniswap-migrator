@@ -315,7 +315,7 @@ const PositionItem = ({
   );
 };
 
-const Essential = () => {
+export const Essential = () => {
   const { address } = useAccount();
   const chainId = useChainId();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(
@@ -449,5 +449,3 @@ const Essential = () => {
     </Box>
   );
 };
-
-export default Essential;

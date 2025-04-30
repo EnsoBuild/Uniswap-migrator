@@ -1,36 +1,12 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ESNext",
     "module": "ESNext",
+    "moduleResolution": "Bundler",
     "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": false,
-    "jsx": "react-jsx",
-    "strict": false,
-    "declaration": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules"]
+    "jsx": "react-jsx"
+  }
 }
-
-// "moduleResolution": "bundler",
-// "allowImportingTsExtensions": true,
-// "isolatedModules": true,
-// "moduleDetection": "force",
-
-
-// "noEmit": true,

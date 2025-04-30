@@ -1,23 +1,29 @@
 {
   "name": "@ensofinance/uniswap-migrator",
-  "version": "0.0.6",
+  "version": "0.0.12",
   "private": false,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "main": "./dist/uniswap-migrator.umd.js",
+  "module": "./dist/uniswap-migrator.es.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/uniswap-migrator.es.js",
+      "require": "./dist/uniswap-migrator.umd.js"
+    }
+  },
   "repository": {
     "url": "https://github.com/EnsoFinance/uniswap-migrator",
     "type": "git",
     "directory": "widget"
   },
   "scripts": {
-    "clean": "find src -name \"*.js\" -type f -delete && find src -name \"*.js.map\" -type f -delete && find src -name \"*.d.ts\" -type f -delete && rm -rf dist",
-    "build": "npm run clean && npx tsc",
+    "bump": "npm version patch",
+    "publish": "npm publish --access public",
+    "dev": "vite build --watch",
+    "build": "vite build",
     "lint": "eslint .",
-    "publish": "npm run build && npm publish"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.8.1",
@@ -32,6 +38,7 @@
     "lucide-react": "^0.503.0",
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
+    "react-icons": "^5.5.0",
     "react-window": "^1.8.11",
     "urql": "^4.2.2",
     "viem": "2.x",
@@ -44,6 +51,9 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.10",
-    "typescript": "~5.7.2"
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0",
+    "vite-plugin-dts": "^4.5.3"
   }
 }

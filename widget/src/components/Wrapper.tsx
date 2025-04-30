@@ -5,7 +5,7 @@ import {
   defaultConfig,
   Center,
 } from "@chakra-ui/react";
-import { Essential } from "..";
+import { Essential } from "../components/Essential";
 import { setApiKey } from "../util/enso";
 import { Toaster } from "./ui/toaster";
 
