@@ -595,7 +595,7 @@ const TargetSection = ({
               Enso charges a {DEFAULT_FEE_BPS / 100}% fee for each migration.
             </Text>
             <Text fontSize="xs" textAlign="center" color="gray.500">
-              Cross-chain transactions may have a delay to arrive. You can track
+              Cross-chain operations may have a delay to arrive. You can track
               transtion progress at{" "}
               <Link
                 href={`https://layerzeroscan.com/address/${address}`}
