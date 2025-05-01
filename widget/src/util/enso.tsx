@@ -43,23 +43,6 @@ type AmountArg =
     }
   | string;
 
-export const useEnsoApprove = (tokenAddress: Address, amount: string) => {
-  const { address } = useAccount();
-  const chainId = usePriorityChainId();
-
-  return useQuery({
-    queryKey: ["enso-approval", tokenAddress, chainId, address, amount],
-    queryFn: () =>
-      ensoClient.getApprovalData({
-        fromAddress: address!,
-        tokenAddress,
-        chainId,
-        amount,
-      }),
-    enabled: +amount > 0 && isAddress(address!) && isAddress(tokenAddress),
-  });
-};
-
 const useStargatePools = () =>
   useQuery<
     {
@@ -271,6 +254,22 @@ const useBridgeBundle = ({
               },
             },
             {
+              protocol: "enso",
+              action: "slippage",
+              args: {
+                amountOut: { useOutputOfCallAt: 1, index: 0 },
+                bps: slippageBps,
+              },
+            },
+            {
+              protocol: "enso",
+              action: "slippage",
+              args: {
+                amountOut: { useOutputOfCallAt: 1, index: 1 },
+                bps: slippageBps,
+              },
+            },
+            {
               protocol: "uniswap-v4",
               action: "depositclmm",
               args: {
@@ -305,62 +304,80 @@ const useBridgeBundle = ({
   } else {
     const positionManager = V4PositionManagers[destinationChainId];
 
-    bundleActions.push({
-      protocol: "enso",
-      // @ts-ignore
-      action: "ensofee",
-      args: {
+    bundleActions.push(
+      {
+        protocol: "enso",
         // @ts-ignore
-        token: tokenIn,
-        amount: amountIn,
-        bps: feeBps,
-      },
-    });
-    bundleActions.push({
-      protocol: "enso",
-      // @ts-ignore
-      action: "split",
-      // @ts-ignore
-      args: {
-        tokenIn,
-        tokenOut: [token0, token1],
-        amountIn: {
-          useOutputOfCallAt: 0,
+        action: "ensofee",
+        args: {
+          // @ts-ignore
+          token: tokenIn,
+          amount: amountIn,
+          bps: feeBps,
         },
       },
-    });
-    bundleActions.push({
-      protocol: "uniswap-v4",
-      // @ts-ignore
-      action: "depositclmm",
-      args: {
-        tokenOut: positionManager,
+      {
+        protocol: "enso",
         // @ts-ignore
-        ticks,
-        tokenIn: [token0, token1],
-        poolFee,
-        amountIn: [
-          {
-            useOutputOfCallAt: 1,
-            index: 0,
-          },
-          {
-            useOutputOfCallAt: 1,
-            index: 1,
-          },
-        ],
-      },
-    });
-    bundleActions.push({
-      protocol: "enso",
-      // @ts-ignore
-      action: "slippage",
-      args: {
+        action: "split",
         // @ts-ignore
-        amountOut: { useOutputOfCallAt: 2 },
-        bps: slippageBps,
+        args: {
+          tokenIn,
+          tokenOut: [token0, token1],
+          amountIn: {
+            useOutputOfCallAt: 0,
+          },
+        },
       },
-    });
+      {
+        protocol: "enso",
+        action: "slippage",
+        args: {
+          amountOut: { useOutputOfCallAt: 1, index: 0 },
+          bps: slippageBps,
+        },
+      },
+      {
+        protocol: "enso",
+        action: "slippage",
+        args: {
+          amountOut: { useOutputOfCallAt: 1, index: 1 },
+          bps: slippageBps,
+        },
+      },
+      {
+        protocol: "uniswap-v4",
+        // @ts-ignore
+        action: "depositclmm",
+        args: {
+          tokenOut: positionManager,
+          // @ts-ignore
+          ticks,
+          tokenIn: [token0, token1],
+          poolFee,
+          amountIn: [
+            {
+              useOutputOfCallAt: 1,
+              index: 0,
+            },
+            {
+              useOutputOfCallAt: 1,
+              index: 1,
+            },
+          ],
+        },
+      },
+      {
+        protocol: "enso",
+        // @ts-ignore
+        action: "slippage",
+        args: {
+          // @ts-ignore
+          amountOut: { useOutputOfCallAt: 2 },
+          bps: 500,
+        },
+      }
+    );
   }
 
   const enabled = Boolean(
