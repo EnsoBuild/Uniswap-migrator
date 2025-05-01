@@ -23,16 +23,17 @@ import {
 
 let ensoClient = new EnsoClient({
   // baseURL: "http://localhost:3000/api/v1",
-  baseURL: "https://shortcuts-backend-dynamic-int.herokuapp.com/api/v1",
+  // baseURL: "https://shortcuts-backend-dynamic-int.herokuapp.com/api/v1",
   // baseURL: "https://shortcuts-backend-dynamic-dev.herokuapp.com/api/v1",
+  baseURL: "https://api.enso.finance/api/v1",
   apiKey: "",
 });
 
 export const setApiKey = (apiKey: string) => {
   ensoClient = new EnsoClient({
     // baseURL: "http://localhost:3000/api/v1",
-    baseURL: "https://shortcuts-backend-dynamic-int.herokuapp.com/api/v1",
     // baseURL: "https://shortcuts-backend-dynamic-dev.herokuapp.com/api/v1",
+    baseURL: "https://api.enso.finance/api/v1",
     apiKey,
   });
 };
