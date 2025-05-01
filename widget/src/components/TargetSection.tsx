@@ -21,6 +21,7 @@ import {
   Button,
   Heading,
   Spinner,
+  Link,
 } from "@chakra-ui/react";
 import { Address } from "viem";
 import { Radio, RadioGroup } from "../components/ui/radio";
@@ -592,6 +593,19 @@ const TargetSection = ({
 
             <Text fontSize="xs" textAlign="center" color="gray.500" mt={1}>
               Enso charges a {DEFAULT_FEE_BPS / 100}% fee for each migration.
+            </Text>
+            <Text fontSize="xs" textAlign="center" color="gray.500">
+              Cross-chain transactions may have a delay to arrive. You can track
+              transtion progress at{" "}
+              <Link
+                href={`https://layerzeroscan.com/address/${address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                color="blue.500"
+                _hover={{ textDecoration: "underline" }}
+              >
+                LayerZero Explorer
+              </Link>
             </Text>
           </Box>
         </Box>
