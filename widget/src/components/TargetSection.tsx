@@ -516,7 +516,8 @@ const TargetSection = ({
             </>
           ) : (
             token0 &&
-            token1 && (
+            token1 &&
+            !isLoading && (
               <Box mt={4} p={4} borderRadius="md" bg="gray.50">
                 <Text textAlign="center">
                   No pools found for selected tokens
