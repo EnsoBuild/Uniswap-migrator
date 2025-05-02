@@ -579,11 +579,12 @@ const TargetSection = ({
               size="lg"
               loading={ensoResult.isLoading}
               onClick={ensoResult.sendTransaction?.send}
-              disabled={
-                !ensoResult.data.tx ||
-                !ensoResult.sendTransaction?.send ||
-                !isApproved
-              }
+              // disabled={
+              //   !ensoResult.data.tx ||
+              //   !ensoResult.sendTransaction?.send ||
+              //   !isApproved
+              // }
+              disabled
               borderRadius="xl"
               h="56px"
               fontWeight="semibold"
