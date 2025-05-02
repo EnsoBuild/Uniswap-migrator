@@ -255,6 +255,22 @@ const useBridgeBundle = ({
               },
             },
             {
+              protocol: "enso",
+              action: "slippage",
+              args: {
+                amountOut: { useOutputOfCallAt: 1, index: 0 },
+                bps: slippageBps,
+              },
+            },
+            {
+              protocol: "enso",
+              action: "slippage",
+              args: {
+                amountOut: { useOutputOfCallAt: 1, index: 1 },
+                bps: slippageBps,
+              },
+            },
+            {
               protocol: "uniswap-v4",
               action: "depositclmm",
               args: {
@@ -278,8 +294,8 @@ const useBridgeBundle = ({
               protocol: "enso",
               action: "slippage",
               args: {
-                amountOut: { useOutputOfCallAt: 2 },
-                bps: slippageBps,
+                amountOut: { useOutputOfCallAt: 4 },
+                bps: 200,
               },
             },
           ],
@@ -315,6 +331,22 @@ const useBridgeBundle = ({
         },
       },
       {
+        protocol: "enso",
+        action: "slippage",
+        args: {
+          amountOut: { useOutputOfCallAt: 1, index: 0 },
+          bps: slippageBps,
+        },
+      },
+      {
+        protocol: "enso",
+        action: "slippage",
+        args: {
+          amountOut: { useOutputOfCallAt: 1, index: 1 },
+          bps: slippageBps,
+        },
+      },
+      {
         protocol: "uniswap-v4",
         // @ts-ignore
         action: "depositclmm",
@@ -342,7 +374,7 @@ const useBridgeBundle = ({
         action: "slippage",
         args: {
           // @ts-ignore
-          amountOut: { useOutputOfCallAt: 2 },
+          amountOut: { useOutputOfCallAt: 4 },
           bps: 500,
         },
       }
