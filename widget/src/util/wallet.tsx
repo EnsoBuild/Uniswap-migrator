@@ -7,11 +7,12 @@ import {
   UseSendTransactionReturnType,
   UseSimulateContractParameters,
   useWaitForTransactionReceipt,
+  UseWaitForTransactionReceiptReturnType,
   useWriteContract,
   UseWriteContractReturnType,
 } from "wagmi";
 import { Address, BaseError, erc20Abi } from "viem";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useEtherscanUrl,
   usePriorityChainId,
@@ -195,41 +196,95 @@ export const useExtendedContractWrite = (
   };
 };
 
-const useWatchTransactionHash = <
-  T extends UseSendTransactionReturnType | UseWriteContractReturnType,
->(
-  description: string,
-  usedWriteContract: T
-) => {
-  // const addRecentTransaction = useAddRecentTransaction();
-  const [loadingToastId, setLoadingToastId] = useState<string | undefined>(
-    undefined
-  );
+enum LayerZeroStatus {
+  Pending = "PENDING",
+  Success = "SUCCEEDED",
+  Failed = "FAILED",
+  Inflight = "INFLIGHT",
+  Confirming = "CONFIRMING",
+  Delivered = "DELIVERED",
+}
 
-  const { data: hash, reset } = usedWriteContract;
-
-  // useEffect(() => {
-  //   if (hash) addRecentTransaction({ hash, description });
-  // }, [hash]);
-
-  const waitForTransaction = useWaitForTransactionReceipt({
-    hash,
+const useLayerZeroUrl = (hash?: `0x${string}`, reset?: () => void) => {
+  const [loadingToastId, setLoadingToastId] = useState<string>();
+  const { data } = useQuery({
+    queryKey: ["layerZeroUrl", hash || "none", !!reset],
+    queryFn: async () => {
+      if (!hash) return null;
+      return fetch(`https://scan.layerzero-api.com/v1/messages/tx/${hash}`)
+        .then((res) => res.json())
+        .then((res) => res.data[0]);
+    },
+    refetchInterval: 2000,
+    enabled: !!(reset && hash),
   });
+
+  useEffect(() => {
+    if (!hash) return;
+
+    console.log(loadingToastId, data, hash);
+
+    const action = {
+      label: "View on Explorer",
+      onClick: () =>
+        window.open(`https://layerzeroscan.com/tx/${hash}`, "_blank"),
+    };
+
+    if (!loadingToastId) {
+      setLoadingToastId(hash);
+      toaster.create({
+        id: hash,
+        title: "Pending (0/4)",
+        description: "Waiting for source transaction completion",
+        type: "loading",
+        action,
+      });
+    } else if (
+      data?.source?.status &&
+      data.source.status !== LayerZeroStatus.Success
+    ) {
+      toaster.update(loadingToastId, {
+        title: "Pending (1/4)",
+        description: "Waiting for funds to be sent on destination",
+      });
+    } else if (data?.status?.name === LayerZeroStatus.Delivered) {
+      reset?.();
+      toaster.update(loadingToastId, {
+        title: "Success (4/4) ",
+        description: "Bridging is complete",
+        type: "success",
+        action,
+      });
+      setLoadingToastId(undefined);
+    } else if (data?.status?.name === LayerZeroStatus.Confirming) {
+      toaster.update(loadingToastId, {
+        title: "Pending (3/4)",
+        description: "Waiting for destination execution",
+      });
+    } else if (data?.status?.name === LayerZeroStatus.Inflight) {
+      toaster.update(loadingToastId, {
+        title: "Pending (2/4)",
+        description: "Waiting for funds to be delivered on destination",
+      });
+    }
+  }, [data, hash]);
+};
+
+const useSingleChainTransactionTracking = (
+  hash: `0x${string}` | undefined,
+  description: string,
+  waitForTransaction: UseWaitForTransactionReceiptReturnType,
+  reset: () => void
+) => {
+  const [loadingToastId, setLoadingToastId] = useState<string | undefined>();
   const link = useEtherscanUrl(hash);
-
-  // console.log(description,link)
-
-  const writeLoading = usedWriteContract.status === "pending";
 
   // toast error if tx failed to be mined and success if it is having confirmation
   useEffect(() => {
+    if (!reset) return;
+
     if (waitForTransaction.error) {
-      // Close loading toast if it exists
-      if (loadingToastId) {
-        toaster.remove(loadingToastId);
-        setLoadingToastId(undefined);
-      }
-      toaster.create({
+      toaster.update(hash, {
         title: "Error",
         description: waitForTransaction.error.message,
         type: "error",
@@ -242,15 +297,11 @@ const useWatchTransactionHash = <
       });
     } else if (waitForTransaction.data) {
       // Close loading toast if it exists
-      if (loadingToastId) {
-        toaster.remove(loadingToastId);
-        setLoadingToastId(undefined);
-      }
-
+      setLoadingToastId(undefined);
       // reset tx hash to eliminate recurring notifications
       reset();
 
-      toaster.create({
+      toaster.update(loadingToastId, {
         title: "Success",
         description: description,
         type: "success",
@@ -262,18 +313,21 @@ const useWatchTransactionHash = <
           : undefined,
       });
     } else if (waitForTransaction.isLoading) {
-      const id = toaster.create({
-        title: "Transaction Pending",
-        description: description,
-        type: "loading",
-        action: link
-          ? {
-              label: "View on Explorer",
-              onClick: () => window.open(link, "_blank"),
-            }
-          : undefined,
-      });
-      setLoadingToastId(id);
+      if (!loadingToastId) {
+        toaster.create({
+          id: hash,
+          title: "Transaction Pending",
+          description: description,
+          type: "loading",
+          action: link
+            ? {
+                label: "View on Explorer",
+                onClick: () => window.open(link, "_blank"),
+              }
+            : undefined,
+        });
+        setLoadingToastId(hash);
+      }
     }
   }, [
     waitForTransaction.data,
@@ -283,6 +337,35 @@ const useWatchTransactionHash = <
     link,
     reset,
   ]);
+};
+
+const useWatchTransactionHash = <
+  T extends UseSendTransactionReturnType | UseWriteContractReturnType,
+>(
+  usedWriteContract: T,
+  description: string,
+  crosschain?: boolean
+) => {
+  // const addRecentTransaction = useAddRecentTransaction();
+  const { data: hash, reset } = usedWriteContract;
+
+  // useEffect(() => {
+  //   if (hash) addRecentTransaction({ hash, description });
+  // }, [hash]);
+
+  const waitForTransaction = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  useLayerZeroUrl(hash, crosschain && reset);
+  useSingleChainTransactionTracking(
+    hash,
+    description,
+    waitForTransaction,
+    !crosschain && reset
+  );
+
+  const writeLoading = usedWriteContract.status === "pending";
 
   return {
     ...usedWriteContract,
@@ -293,23 +376,27 @@ const useWatchTransactionHash = <
   };
 };
 
-export const useWatchSendTransactionHash = (title: string) => {
+export const useWatchSendTransactionHash = (
+  title: string,
+  isCrosschain?: boolean
+) => {
   const sendTransaction = useSendTransaction();
 
-  return useWatchTransactionHash(title, sendTransaction);
+  return useWatchTransactionHash(sendTransaction, title, isCrosschain);
 };
 
 const useWatchWriteTransactionHash = (description: string) => {
   const writeContract = useWriteContract();
 
-  return useWatchTransactionHash(description, writeContract);
+  return useWatchTransactionHash(writeContract, description);
 };
 
 export const useExtendedSendTransaction = (
   title: string,
-  args: UseSimulateContractParameters
+  args: UseSimulateContractParameters,
+  isCrosschain?: boolean
 ): any => {
-  const sendTransaction = useWatchSendTransactionHash(title);
+  const sendTransaction = useWatchSendTransactionHash(title, isCrosschain);
 
   const send = useCallback(() => {
     sendTransaction.sendTransaction(args, {
@@ -367,6 +454,9 @@ export const useNftApproveIfNecessary = (
     : undefined;
 };
 
-export const useSendEnsoTransaction = (ensoTxData: any) => {
-  return useExtendedSendTransaction("Migrating", ensoTxData);
+export const useSendEnsoTransaction = (
+  ensoTxData: any,
+  isCrosschain?: boolean
+) => {
+  return useExtendedSendTransaction("Migrating", ensoTxData, isCrosschain);
 };

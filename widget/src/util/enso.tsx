@@ -453,7 +453,7 @@ export const useEnsoData = (
   const data = bundleData;
   const isLoading = bundleLoading;
 
-  const sendTransaction = useSendEnsoTransaction(data?.tx);
+  const sendTransaction = useSendEnsoTransaction(data?.tx, params.chainId !== params.destinationChainId);
 
   return {
     data,
