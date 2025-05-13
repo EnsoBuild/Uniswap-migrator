@@ -574,27 +574,24 @@ const TargetSection = ({
               </Button>
             )}
 
-            <Tooltip content={"Maintenance mode"} openDelay={10}>
-              <Button
-                w="full"
-                colorPalette="blue"
-                size="lg"
-                loading={ensoResult.isLoading}
-                onClick={ensoResult.sendTransaction?.send}
-                // disabled={
-                //   !ensoResult.data.tx ||
-                //   !ensoResult.sendTransaction?.send ||
-                //   !isApproved
-                // }
-                disabled
-                borderRadius="xl"
-                h="56px"
-                fontWeight="semibold"
-                bg="#5D8EFA"
-              >
-                Migrate
-              </Button>
-            </Tooltip>
+            <Button
+              w="full"
+              colorPalette="blue"
+              size="lg"
+              loading={ensoResult.isLoading}
+              onClick={ensoResult.sendTransaction?.send}
+              disabled={
+                !ensoResult.data.tx ||
+                !ensoResult.sendTransaction?.send ||
+                !isApproved
+              }
+              borderRadius="xl"
+              h="56px"
+              fontWeight="semibold"
+              bg="#5D8EFA"
+            >
+              Migrate
+            </Button>
 
             <Text fontSize="xs" textAlign="center" color="gray.500" mt={1}>
               Enso charges a {DEFAULT_FEE_BPS / 100}% fee for each migration.
