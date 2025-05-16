@@ -29,6 +29,7 @@ import {
 } from "../util/uniswap";
 import TargetSection from "./TargetSection";
 import SwapInput from "./SwapInput";
+import { WidgetProps } from "../types";
 
 const getMintAmounts = (
   token0: Address,
@@ -314,7 +315,12 @@ const PositionItem = ({
   );
 };
 
-export const Essential = () => {
+export const Essential = ({
+  outChainId,
+  outTokens,
+  poolFeeGrade,
+  ticks,
+}: WidgetProps = {}) => {
   const { address } = useAccount();
   const chainId = useChainId();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(
@@ -441,6 +447,10 @@ export const Essential = () => {
             }
             sourceToken={sourceMode === "token" ? sourceToken : undefined}
             sourceAmount={sourceMode === "token" ? sourceAmount : undefined}
+            outChainId={outChainId}
+            outTokens={outTokens}
+            poolFeeGrade={poolFeeGrade}
+            ticks={ticks}
           />
         </Flex>
       </Center>

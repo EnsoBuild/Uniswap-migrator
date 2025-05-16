@@ -206,14 +206,16 @@ const TokenSelector = ({
       w={"fit-content"}
       borderRadius={"xl"}
       transition="all 0.2s ease-in-out"
+      border={"1px solid"}
+      borderColor={"bg.emphasized"}
     >
       <Select.Trigger
         borderRadius={"lg"}
         minWidth={"150px"}
-        cursor={"pointer"}
         transition="all 0.2s ease-in-out"
+        opacity={1}
         _hover={{
-          bg: "rgba(255, 255, 255, 0.5)",
+          bg: "bg.emphasized",
         }}
       >
         <SelectValue />

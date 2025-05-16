@@ -4,13 +4,13 @@ import {
   RainbowKitProvider,
 } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
-import { arbitrum, base, mainnet, unichain } from "viem/chains";
+import { arbitrum, base, mainnet, optimism, unichain } from "viem/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const config = getDefaultConfig({
   appName: "My RainbowKit App",
   projectId: "YOUR_PROJECT_ID",
-  chains: [mainnet, arbitrum, base, unichain],
+  chains: [mainnet, arbitrum, base, optimism, unichain],
   ssr: false,
 });
 

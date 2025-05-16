@@ -95,8 +95,11 @@ export interface BridgeBundleParams {
 }
 
 const V4PositionManagers = {
-  8453: "0x7c5f5a4bbd8fd63184577525326123b519429bdc",
-  130: "0x4529a01c7a0410167c5740c487a8de60232617bf",
+  [SupportedChainId.BASE]: "0x7c5f5a4bbd8fd63184577525326123b519429bdc",
+  [SupportedChainId.UNICHAIN]: "0x4529a01c7a0410167c5740c487a8de60232617bf",
+  [SupportedChainId.MAINNET]: "0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e",
+  [SupportedChainId.OPTIMISM]: "0x3c3ea4b57a46241e54610e5f022e5c45859a1017",
+  [SupportedChainId.ARBITRUM_ONE]: "0xd88f38f930b7952f2db2432cb002e7abbf3dd869",
 };
 
 const useBridgeBundle = ({
@@ -453,7 +456,10 @@ export const useEnsoData = (
   const data = bundleData;
   const isLoading = bundleLoading;
 
-  const sendTransaction = useSendEnsoTransaction(data?.tx, params.chainId !== params.destinationChainId);
+  const sendTransaction = useSendEnsoTransaction(
+    data?.tx,
+    params.chainId !== params.destinationChainId
+  );
 
   return {
     data,

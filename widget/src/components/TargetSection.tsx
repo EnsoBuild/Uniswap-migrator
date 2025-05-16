@@ -27,9 +27,9 @@ import { Address } from "viem";
 import { Radio, RadioGroup } from "../components/ui/radio";
 import { formatCompactUsd } from "../util";
 import { BridgeBundleParams, useEnsoData, useEnsoToken } from "../util/enso";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { usePriorityChainId } from "../util/common";
-import { getPosManagerAddress } from "../util/uniswap";
+import { getV3PosManagerAddress } from "../util/uniswap";
 import {
   useApproveIfNecessary,
   useNftApproveIfNecessary,
@@ -37,7 +37,9 @@ import {
 import TickedPriceInput from "./TickedPriceInput";
 import { DEFAULT_FEE_BPS } from "../constants";
 import Slippage from "./Slippage";
-import { Tooltip } from "@/components/ui/tooltip";
+import ChainSelector from "./ChainSelector";
+import { SupportedChainId } from "../constants";
+import { chai } from "globals";
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
 // Default slippage in basis points (0.5%)
@@ -47,12 +49,20 @@ interface TargetSectionProps {
   selectedPosition: Position | null;
   sourceToken?: Address;
   sourceAmount?: string;
+  outChainId?: SupportedChainId;
+  outTokens?: [Address, Address];
+  poolFeeGrade?: number;
+  ticks?: [number, number];
 }
 
 const TargetSection = ({
   selectedPosition,
   sourceToken,
   sourceAmount,
+  outChainId,
+  outTokens,
+  poolFeeGrade,
+  ticks,
 }: TargetSectionProps) => {
   const [token0, setToken0] = useState<Address>();
   const [token1, setToken1] = useState<Address>();
@@ -61,12 +71,41 @@ const TargetSection = ({
   const [maxTick, setMaxTick] = useState<number>(0);
   const [pricesInToken0, setPricesInToken0] = useState<boolean>(true);
   const [slippage, setSlippage] = useState<number>(DEFAULT_SLIPPAGE_BPS);
+  const [targetChainId, setTargetChainId] = useState<SupportedChainId>();
 
-  const [token0Data] = useEnsoToken({ address: token0, priorityChainId: 130 });
-  const [token1Data] = useEnsoToken({ address: token1, priorityChainId: 130 });
+  const chainId = usePriorityChainId();
+
+  // Initialize with provided values if they exist
+  useEffect(() => {
+    if (outChainId) {
+      setTargetChainId(outChainId);
+    } else if (!targetChainId && chainId) setTargetChainId(chainId);
+  }, [outChainId, chainId]);
+
+  useEffect(() => {
+    if (outTokens) {
+      setToken0(outTokens[0]);
+      setToken1(outTokens[1]);
+    }
+  }, [outTokens]);
+
+  useEffect(() => {
+    if (ticks) {
+      setMinTick(ticks[0]);
+      setMaxTick(ticks[1]);
+    }
+  }, [ticks]);
+
+  const [token0Data] = useEnsoToken({
+    address: token0,
+    priorityChainId: targetChainId,
+  });
+  const [token1Data] = useEnsoToken({
+    address: token1,
+    priorityChainId: targetChainId,
+  });
 
   // Color mode values
-  const borderColor = "gray.200";
   const accentColor = "rgb(76, 130, 251)";
   const highlightBg = "blue.50";
   const selectedBg = "gray.100";
@@ -88,8 +127,21 @@ const TargetSection = ({
   // Pass the ordered tokens to the hook
   const { data, isLoading } = useV4UnichainPools(
     tokens[0] as Address | undefined,
-    tokens[1] as Address | undefined
+    tokens[1] as Address | undefined,
+    targetChainId
   );
+
+  // When poolFee or poolFeeGrade is provided, automatically select the matching pool
+  useEffect(() => {
+    if (poolFeeGrade && data?.pools) {
+      const matchingPool = data.pools.find(
+        (p) => Number(p.feeTier) === poolFeeGrade
+      );
+      if (matchingPool) {
+        setSelectedPool(matchingPool.id);
+      }
+    }
+  }, [poolFeeGrade, data?.pools]);
 
   // Get the selected pool object
   const selectedPoolData = useMemo(() => {
@@ -121,7 +173,7 @@ const TargetSection = ({
 
   // Set price range based on percentage buttons - centered around current price
   const setPriceRange = (percentage: number) => {
-    if (!selectedPoolData) return;
+    if (!selectedPoolData || ticks) return; // Don't change if ticks are locked
 
     if (percentage === 0) {
       // MIN range - very tight range around current price
@@ -152,19 +204,20 @@ const TargetSection = ({
 
   // Update price displays when pool changes
   useEffect(() => {
-    if (selectedPoolData) {
-      // Set initial price range to full range
+    if (selectedPoolData && !ticks) {
+      // Set initial price range to full range if ticks aren't provided
       setPriceRange(100);
     }
-  }, [selectedPoolData?.id]);
+  }, [selectedPoolData?.id, ticks]);
 
   useEffect(() => {
-    setSelectedPool("");
-  }, [token0, token1]);
+    if (!outTokens) {
+      setSelectedPool("");
+    }
+  }, [token0, token1, targetChainId, outTokens]);
 
   const { address } = useAccount();
-  const chainId = usePriorityChainId();
-  const tokenIn = getPosManagerAddress(chainId);
+  const tokenIn = getV3PosManagerAddress(chainId);
 
   // Add token approval hook
   const tokenApproval = useApproveIfNecessary(
@@ -194,9 +247,9 @@ const TargetSection = ({
     //output position
     token0,
     token1,
-    poolFee: selectedPoolData?.feeTier.toString(),
+    poolFee: selectedPoolData?.feeTier.toString() || poolFeeGrade?.toString(),
     receiver: address,
-    destinationChainId: 130,
+    destinationChainId: targetChainId,
     slippageBps: slippage,
     feeBps: DEFAULT_FEE_BPS,
   };
@@ -225,33 +278,36 @@ const TargetSection = ({
         bg="rgba(0, 0, 0, 0.02)"
         borderRadius="xl"
         border="1px"
-        borderColor={borderColor}
+        borderColor={"bg.emphasized"}
         overflow="hidden"
       >
         <Box p={6}>
-          <Heading
-            as="h2"
-            size="lg"
-            mb={4}
-            textAlign="center"
-            fontWeight="semibold"
-          >
-            Configure V4 Position on Unichain
-          </Heading>
+          <Flex justify="center" align="center" mb={4}>
+            <Heading as="h2" size="lg" fontWeight="semibold" mr={2}>
+              Configure V4 Position on
+            </Heading>
+            <ChainSelector
+              value={targetChainId}
+              onChange={setTargetChainId}
+              disabled={!!outChainId}
+            />
+          </Flex>
 
           <HStack gap={4} mt={4} mb={6}>
             <Box flex={1}>
               <TokenSelector
                 value={token0}
                 onChange={(value) => setToken0(value as Address)}
-                chainId={130}
+                chainId={targetChainId}
+                obligatedToken={!!outTokens}
               />
             </Box>
             <Box flex={1}>
               <TokenSelector
                 value={token1}
                 onChange={(value) => setToken1(value as Address)}
-                chainId={130}
+                chainId={targetChainId}
+                obligatedToken={!!outTokens}
               />
             </Box>
           </HStack>
@@ -276,13 +332,17 @@ const TargetSection = ({
                 </Text>
                 <RadioGroup
                   value={selectedPool}
-                  onValueChange={(details) => setSelectedPool(details.value)}
+                  onValueChange={(details) =>
+                    !poolFeeGrade && setSelectedPool(details.value)
+                  }
                 >
                   <HStack wrap="wrap" gap={0} justify="center" align="stretch">
                     {Object.entries(TICK_SPACINGS).map(([feeTier, spacing]) => {
                       const pool = data?.pools?.find(
                         (p) => p.feeTier === feeTier
                       );
+                      const isDisabled =
+                        !!poolFeeGrade && Number(feeTier) !== poolFeeGrade;
 
                       return (
                         <Box
@@ -296,22 +356,31 @@ const TargetSection = ({
                           borderColor={
                             pool && selectedPool === pool.id
                               ? accentColor
-                              : borderColor
+                              : "bg.emphasized"
                           }
                           bg={
                             pool && selectedPool === pool.id
                               ? highlightBg
                               : "transparent"
                           }
-                          cursor={pool ? "pointer" : "default"}
+                          cursor={pool && !isDisabled ? "pointer" : "default"}
                           transition="all 0.2s"
-                          _hover={{ bg: pool ? selectedBg : "transparent" }}
-                          onClick={() => pool && setSelectedPool(pool.id)}
-                          opacity={pool ? 1 : 0.7}
+                          _hover={{
+                            bg:
+                              pool && !isDisabled ? selectedBg : "transparent",
+                          }}
+                          onClick={() =>
+                            pool && !isDisabled && setSelectedPool(pool.id)
+                          }
+                          opacity={pool && !isDisabled ? 1 : 0.7}
                         >
                           {pool ? (
                             <>
-                              <Radio value={pool.id} display="none">
+                              <Radio
+                                value={pool.id}
+                                display="none"
+                                disabled={isDisabled}
+                              >
                                 <></>
                               </Radio>
                               <VStack gap={0} align="center">
@@ -431,7 +500,9 @@ const TargetSection = ({
                         baseToken={baseToken}
                         quoteToken={quoteToken}
                         decimalsDiff={decimalsDiff}
-                        onTickChange={(newTick) => setMinTick(newTick)}
+                        onTickChange={(newTick) =>
+                          !ticks && setMinTick(newTick)
+                        }
                         showLowerPercent={true}
                       />
 
@@ -444,7 +515,9 @@ const TargetSection = ({
                         baseToken={baseToken}
                         quoteToken={quoteToken}
                         decimalsDiff={decimalsDiff}
-                        onTickChange={(newTick) => setMaxTick(newTick)}
+                        onTickChange={(newTick) =>
+                          !ticks && setMaxTick(newTick)
+                        }
                       />
                     </Flex>
 
@@ -470,9 +543,9 @@ const TargetSection = ({
                             onClick={() => setPriceRange(range.value)}
                             borderRadius="lg"
                             fontWeight="normal"
-                            // colorPalette="blue"
                             flex={1}
                             h="32px"
+                            disabled={!!ticks}
                           >
                             {range.label}
                           </Button>

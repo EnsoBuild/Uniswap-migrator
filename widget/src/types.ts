@@ -1,14 +1,11 @@
 import { Address } from "viem";
+import { SupportedChainId } from "./constants";
 
 export type WidgetProps = {
-  adaptive?: boolean;
-  tokenOut?: Address;
-  tokenIn?: Address;
-  obligateSelection?: boolean;
-  enableShare?: boolean;
-  indicateRoute?: boolean;
-  rotateObligated?: boolean | ObligatedToken;
-  outProtocol?: string;
+  outChainId?: SupportedChainId;
+  outTokens?: [Address, Address];
+  poolFeeGrade?: number;
+  ticks?: [number, number];
 };
 
 export enum NotifyType {

@@ -2,6 +2,7 @@ import { cacheExchange, createClient, fetchExchange, gql } from "urql";
 import { useQuery } from "@tanstack/react-query";
 import { Address } from "viem";
 import { base } from "viem/chains";
+import { SupportedChainId } from "@/constants";
 
 // Import or define TICK_SPACINGS
 export const TICK_SPACINGS: { [key: number]: number } = {
@@ -133,13 +134,26 @@ interface UniswapV3PositionsResponse {
 }
 
 const v4Subgraphs = {
-  130: "https://gateway.thegraph.com/api/subgraphs/id/EoCvJ5tyMLMJcTnLQwWpjAtPdn74PcrZgzfcT5bYxNBH",
+  [SupportedChainId.UNICHAIN]:
+    "https://gateway.thegraph.com/api/subgraphs/id/EoCvJ5tyMLMJcTnLQwWpjAtPdn74PcrZgzfcT5bYxNBH",
+  [SupportedChainId.OPTIMISM]:
+    "https://gateway.thegraph.com/api/subgraphs/id/6RBtsmGUYfeLeZsYyxyKSUiaA6WpuC69shMEQ1Cfuj9u",
+  [SupportedChainId.BASE]:
+    "https://gateway.thegraph.com/api/subgraphs/id/HNCFA9TyBqpo5qpe6QreQABAA1kV8g46mhkCcicu6v2R",
+  [SupportedChainId.ARBITRUM_ONE]:
+    "https://gateway.thegraph.com/api/subgraphs/id/G5TsTKNi8yhPSV7kycaE23oWbqv9zzNqR49FoEQjzq1r",
+  [SupportedChainId.MAINNET]:
+    "https://gateway.thegraph.com/api/subgraphs/id/DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G",
 };
 const v3Subgraphs = {
-  8453: "https://gateway.thegraph.com/api/subgraphs/id/HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1",
-  42161:
+  [SupportedChainId.BASE]:
+    "https://gateway.thegraph.com/api/subgraphs/id/HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1",
+  [SupportedChainId.ARBITRUM_ONE]:
     "https://gateway.thegraph.com/api/subgraphs/id/3V7ZY6muhxaQL5qvntX1CFXJ32W7BxXZTGTwmpH5J4t3",
-  1: "https://gateway.thegraph.com/api/subgraphs/id/9fWsevEC9Yz4WdW9QyUvu2JXsxyXAxc1X4HaEkmyyc75",
+  [SupportedChainId.MAINNET]:
+    "https://gateway.thegraph.com/api/subgraphs/id/9fWsevEC9Yz4WdW9QyUvu2JXsxyXAxc1X4HaEkmyyc75",
+  [SupportedChainId.OPTIMISM]:
+    "https://gateway.thegraph.com/api/subgraphs/id/Cghf4LfVqPiFw6fp6Y5X5Ubc8UpmUhSfJL82zwiBFLaj",
 };
 
 const getV4Client = (chainId: number) =>
@@ -231,19 +245,23 @@ const POSITIONS_QUERY = gql`
   }
 `;
 
-export const useV4UnichainPools = (token0?: string, token1?: string) => {
+export const useV4UnichainPools = (
+  token0?: string,
+  token1?: string,
+  chainId?: SupportedChainId
+) => {
   return useQuery<UniswapV4Response, Error>({
-    queryKey: ["v4-unichain-pools", token0, token1],
+    queryKey: ["v4-unichain-pools", token0, token1, chainId],
     queryFn: () =>
-      getV4Client(130)
+      getV4Client(chainId)
         .query(POOLS_QUERY, {
           token0: token0,
           token1: token1,
         })
         .toPromise()
         .then((res) => res.data),
-    enabled: !!token0 && !!token1,
-    refetchInterval: 60 * 1000, // 1 minute
+    enabled: !!token0 && !!token1 && !!chainId,
+    refetchInterval: 30 * 1000, // 30 seconds
   });
 };
 
@@ -296,13 +314,13 @@ export const convertSubgraphPosition = (position: V3PositionData): Position => {
 };
 
 export const v3FactoryAddresses: { [key: number]: `0x${string}` } = {
-  1: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-  10: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-  42161: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-  8453: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+  [SupportedChainId.MAINNET]: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+  [SupportedChainId.OPTIMISM]: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+  [SupportedChainId.ARBITRUM_ONE]: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+  [SupportedChainId.BASE]: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
 };
 
-export const getPosManagerAddress = (chainId: number) => {
+export const getV3PosManagerAddress = (chainId: number) => {
   if (chainId === base.id) {
     return "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1";
   }

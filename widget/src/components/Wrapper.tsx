@@ -8,13 +8,20 @@ import {
 import { Essential } from "../components/Essential";
 import { setApiKey } from "../util/enso";
 import { Toaster } from "./ui/toaster";
+import { WidgetProps } from "../types";
 
 /**
  * ChakraUI wrapper component
  *
  * Use this to wrap widget components in your application
  */
-export const WidgetWrapper = ({ apiKey }: { apiKey: string }) => {
+export const WidgetWrapper = ({
+  apiKey,
+  outChainId,
+  outTokens,
+  poolFeeGrade,
+  ticks,
+}: { apiKey: string } & WidgetProps) => {
   useEffect(() => {
     if (apiKey) {
       setApiKey(apiKey);
@@ -43,7 +50,12 @@ export const WidgetWrapper = ({ apiKey }: { apiKey: string }) => {
             }
           `}
           </style>
-          <Essential />
+          <Essential
+            outChainId={outChainId}
+            outTokens={outTokens}
+            poolFeeGrade={poolFeeGrade}
+            ticks={ticks}
+          />
         </div>
       </Center>
       <Toaster />
