@@ -2,14 +2,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import dts from "vite-plugin-dts";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
-    react(),
-    dts({
-      insertTypesEntry: true,
-      rollupTypes: true,
-    }),
-  ],
+    mode === "development" ? react() : undefined,
+    dts(), // generates *.d.ts beside the JS
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": "/src",
@@ -23,17 +20,28 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        /^react($|\/)/,
+        /^react-dom($|\/)/, // removes legacy react-dom/server
         "react",
         "react-dom",
         "wagmi",
         "viem",
         "@tanstack/react-query",
-      ], // Mark React as a peer dependency
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+      ],
       output: {
         globals: {
           react: "React",
+          "react-dom": "ReactDOM",
+          "react/jsx-runtime": "ReactJsxRuntime",
         },
       },
     },
+    sourcemap: true,
+    target: "es2018",
   },
-});
+  esbuild: {
+    jsxImportSource: "react",
+  },
+}));
