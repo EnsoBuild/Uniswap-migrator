@@ -168,7 +168,7 @@ importers:
         specifier: ~5.7.2
         version: 5.7.3
       viem:
-        specifier: ~2.23.6
+        specifier: 2.x
         version: 2.23.6(bufferutil@4.0.9)(typescript@5.7.3)(utf-8-validate@5.0.10)
       vite:
         specifier: ^6.2.0
