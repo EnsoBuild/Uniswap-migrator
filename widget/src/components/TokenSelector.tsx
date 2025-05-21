@@ -135,14 +135,6 @@ const TokenSelector = ({
         (b: { token: string }) => b.token === token.address
       );
 
-      // debank return ''arb" and "zksync" native token names instead of token address
-      if (token.address === ETH_ADDRESS) {
-        balanceValue = balances?.find?.(
-          ({ token }: { token: string }) =>
-            token && !isAddress(token as Address)
-        );
-      }
-
       // cut scientific notation
       const balance = Number(balanceValue?.amount).toLocaleString("fullwide", {
         useGrouping: false,

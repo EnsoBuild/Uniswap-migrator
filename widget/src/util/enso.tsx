@@ -534,15 +534,16 @@ export const useEnsoToken = ({
   const getListToken = useCurrentChainTokenGetter(chainId);
 
   const token: Token[] = useMemo(() => {
+    const foundToken = address ? getListToken(address) : undefined;
+
     if (!data?.data?.length || !data?.data[0].symbol) {
-      const foundToken = address ? getListToken(address) : undefined;
       return foundToken ? [foundToken] : [];
     }
 
     return data?.data?.map((token) => ({
       ...token,
       address: token?.address.toLowerCase() as Address,
-      logoURI: token?.logosUri[0],
+      logoURI: foundToken?.logoURI ?? token?.logosUri[0],
       underlyingTokens: token?.underlyingTokens?.map((token) => ({
         ...token,
         address: token?.address.toLowerCase() as Address,
