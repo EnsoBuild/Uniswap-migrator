@@ -260,4 +260,4 @@ export const CHAINS_ICON_URL: Record<SupportedChainId, string> = {
     "https://assets.coingecko.com/asset_platforms/images/44/large/unichain.png",
 };
 
-export const DEFAULT_FEE_BPS = 25;
+export const DEFAULT_FEE_BPS = 0;
