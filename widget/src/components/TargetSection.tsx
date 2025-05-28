@@ -9,6 +9,8 @@ import {
   isFullRange,
   TickMath,
   TICK_SPACINGS,
+  NativeToken,
+  NullAddress,
 } from "../util/uniswap";
 import { useState, useMemo, useEffect } from "react";
 import TokenSelector from "../components/TokenSelector";
@@ -35,11 +37,12 @@ import {
   useNftApproveIfNecessary,
 } from "../util/wallet";
 import TickedPriceInput from "./TickedPriceInput";
-import { DEFAULT_FEE_BPS } from "../constants";
+import { DEFAULT_FEE_BPS, SupportedChainId } from "../constants";
 import Slippage from "./Slippage";
 import ChainSelector from "./ChainSelector";
-import { SupportedChainId } from "../constants";
-import { chai } from "globals";
+import PoolSelector, { Pool } from "./PoolSelector";
+
+const isZeroAddress = (address: string) => address === NullAddress;
 
 const ROUTER_ADDRESS = "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf";
 // Default slippage in basis points (0.5%)
@@ -214,14 +217,14 @@ const TargetSection = ({
     if (!outTokens) {
       setSelectedPool("");
     }
-  }, [token0, token1, targetChainId, outTokens]);
+  }, [targetChainId, outTokens]);
 
   const { address } = useAccount();
   const tokenIn = getV3PosManagerAddress(chainId);
 
   // Add token approval hook
   const tokenApproval = useApproveIfNecessary(
-    sourceToken || "0x0000000000000000000000000000000000000000",
+    sourceToken || NullAddress,
     ROUTER_ADDRESS,
     sourceAmount || "0"
   );
@@ -272,6 +275,24 @@ const TargetSection = ({
     return !nftApproval;
   }, [sourceToken, tokenApproval, nftApproval]);
 
+  // Handler for pool selector changes
+  const handlePoolSelectorChange = (poolId: string, pool: Pool) => {
+    // setSelectedPoolFromSelector(poolId);
+    setToken0(
+      isZeroAddress(pool.token0.id) ? NativeToken : (pool.token0.id as Address)
+    );
+    setToken1(
+      isZeroAddress(pool.token1.id) ? NativeToken : (pool.token1.id as Address)
+    );
+    setSelectedPool(poolId);
+    // Set the fee grade from the selected pool
+    const feeGrade = Number(pool.feeTier);
+    // Reset ticks when pool changes unless they're locked
+    if (!ticks) {
+      // Will be set by useEffect when selectedPoolData changes
+    }
+  };
+
   return (
     <Box minW="550px" maxW="700px" mx="auto" h="100%" m={6}>
       <Box
@@ -281,7 +302,7 @@ const TargetSection = ({
         borderColor={"bg.emphasized"}
         overflow="hidden"
       >
-        <Box p={6}>
+        <Flex p={6} direction="column" align="center">
           <Flex justify="center" align="center" mb={4}>
             <Heading as="h2" size="lg" fontWeight="semibold" mr={2}>
               Configure V4 Position on
@@ -293,24 +314,60 @@ const TargetSection = ({
             />
           </Flex>
 
-          <HStack gap={4} mt={4} mb={6}>
-            <Box flex={1}>
-              <TokenSelector
-                value={token0}
-                onChange={(value) => setToken0(value as Address)}
-                chainId={targetChainId}
-                obligatedToken={!!outTokens}
-              />
-            </Box>
-            <Box flex={1}>
-              <TokenSelector
-                value={token1}
-                onChange={(value) => setToken1(value as Address)}
-                chainId={targetChainId}
-                obligatedToken={!!outTokens}
-              />
-            </Box>
-          </HStack>
+          <Flex
+            direction="column"
+            align="center"
+            border="1px solid"
+            borderColor="bg.emphasized"
+            borderRadius="xl"
+            w="fit-content"
+            minW="350px"
+            p={2}
+            gap={2}
+          >
+            <PoolSelector
+              value={selectedPool}
+              onChange={handlePoolSelectorChange}
+              chainId={targetChainId}
+              disabled={!!outTokens}
+            />
+
+            <Flex
+              justify="center"
+              align="center"
+              color={"fg.muted"}
+              fontSize="xs"
+              cursor="default"
+            >
+              ··· select pool or pool tokens ···
+            </Flex>
+
+            <Flex justifyContent={"space-between"} w="full">
+              <Box>
+                <TokenSelector
+                  value={token0}
+                  onChange={(value) => {
+                    setToken0(value as Address);
+                    setSelectedPool("");
+                  }}
+                  chainId={targetChainId}
+                  obligatedToken={!!outTokens}
+                />
+              </Box>
+
+              <Box>
+                <TokenSelector
+                  value={token1}
+                  onChange={(value) => {
+                    setToken1(value as Address);
+                    setSelectedPool("");
+                  }}
+                  chainId={targetChainId}
+                  obligatedToken={!!outTokens}
+                />
+              </Box>
+            </Flex>
+          </Flex>
 
           {token0 && token1 && isLoading && (
             <Flex justify="center" align="center" py={8}>
@@ -683,7 +740,7 @@ const TargetSection = ({
               </Link>
             </Text>
           </Box>
-        </Box>
+        </Flex>
       </Box>
     </Box>
   );

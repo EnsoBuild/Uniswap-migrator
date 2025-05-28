@@ -184,6 +184,35 @@ const getV3Client = (chainId: number) => {
   });
 };
 
+const POSITIONS_QUERY = gql`
+  query Positions($owner: String!) {
+    positions(where: { owner: $owner, liquidity_gt: "0" }) {
+      id
+      owner
+      token0 {
+        id
+        symbol
+      }
+      token1 {
+        id
+        symbol
+      }
+      pool {
+        id
+        feeTier
+        tick
+        sqrtPrice
+        liquidity
+      }
+      tickLower
+      tickUpper
+      liquidity
+      depositedToken0
+      depositedToken1
+    }
+  }
+`;
+
 const POOLS_QUERY = gql`
   query Pools($token0: String!, $token1: String!) {
     pools(
@@ -216,31 +245,36 @@ const POOLS_QUERY = gql`
   }
 `;
 
-const POSITIONS_QUERY = gql`
-  query Positions($owner: String!) {
-    positions(where: { owner: $owner, liquidity_gt: "0" }) {
+const ALL_POOLS_QUERY = gql`
+  query AllPools($first: Int!, $skip: Int!) {
+    pools(
+      first: $first
+      skip: $skip
+      orderBy: totalValueLockedUSD
+      orderDirection: desc
+      where: {
+        liquidity_gt: 0
+        totalValueLockedUSD_gt: 1000
+        hooks: "0x0000000000000000000000000000000000000000"
+      }
+    ) {
       id
-      owner
+      liquidity
+      feeTier
+      tickSpacing
+      sqrtPrice
+      tick
+      totalValueLockedUSD
       token0 {
         id
         symbol
+        derivedETH
       }
       token1 {
         id
         symbol
+        derivedETH
       }
-      pool {
-        id
-        feeTier
-        tick
-        sqrtPrice
-        liquidity
-      }
-      tickLower
-      tickUpper
-      liquidity
-      depositedToken0
-      depositedToken1
     }
   }
 `;
@@ -262,6 +296,25 @@ export const useV4UnichainPools = (
         .then((res) => res.data),
     enabled: !!token0 && !!token1 && !!chainId,
     refetchInterval: 30 * 1000, // 30 seconds
+  });
+};
+
+export const useV4AllPools = (
+  chainId?: SupportedChainId,
+  first: number = 100,
+  skip: number = 0
+) => {
+  return useQuery<UniswapV4Response, Error>({
+    queryKey: ["v4-all-pools", chainId, first, skip],
+    queryFn: () =>
+      getV4Client(chainId)
+        .query(ALL_POOLS_QUERY, {
+          first,
+          skip,
+        })
+        .toPromise()
+        .then((res) => res.data),
+    enabled: !!chainId,
   });
 };
 
