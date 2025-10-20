@@ -13,7 +13,7 @@
     }
   },
   "repository": {
-    "url": "https://github.com/EnsoFinance/uniswap-migrator",
+    "url": "https://github.com/EnsoBuild/Uniswap-migrator",
     "type": "git",
     "directory": "widget"
   },
