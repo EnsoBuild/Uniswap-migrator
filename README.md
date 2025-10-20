@@ -24,7 +24,7 @@ npm install @ensofinance/uniswap-migrator
 
 ## Usage
 
-Get your key at [Enso Dashboard](https://shortcuts.enso.finance/developers)
+Get your key at [Enso Dashboard](https://developers.enso.build)
 
 Here's a basic example of how to use the widget in your React application:
 
